@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.8] - 2026-09-15
+
+### Fixed
+
+- **Silent Download Failures Reported as Success**: N_m3u8DL-RE writes its terminal failure record as `ERROR: Failed` — with **no space** before the colon, unlike every other record (`WARN : ...`). The record-stamp pattern in `ConsoleOutputParser` required whitespace there, so the failure line was never split off; it stayed glued to the tail of the preceding progress frame, was classified as progress, and therefore never reached `ClassifyOutcome`. Since N_m3u8DL-RE exits with code 0 even on failure, the GUI then reported "Process finished successfully!" and skipped every recovery path. The record-stamp pattern now accepts `\s*:` before the colon.
+  - The same glued record also rendered in the progress-row colour instead of red — the cause of the previously reported "Vid Kbps rows are still black".
+  - `HandleProgressFrameLocked` and `FlushPending` now also run `ClassifyOutcome` over the frame text, so a failure signature glued anywhere onto a progress row is still detected even if it is never split into its own record.
+- **Truncated Downloads With No Failure Signature**: a new `ConsoleOutputParser.TryExtractVideoSegmentCount` reads the video bar's `done/total` counters (anchored on the `Vid ` label, so an idle `Sub Kbps --- 5/100` row cannot be mistaken for an incomplete video download). A run that exits 0 with a short video bar is now treated as a failure instead of a success.
+- **Recovery Pipeline Restored**: `EngineRunResult` gained an `Incomplete` flag, and both the auto-retry loop and the CF-bypass fallback gate on it. Previously `Outcome == None` broke out of the retry loop immediately, so the segment-count safety net could never trigger. With the three fixes above, retries, the Cloudflare fallback and the "Allow Missing Segments" partial merge all run as configured.
+- 711 automated tests pass, 0 failed (1 skipped: live-network integration).
+
+### Changed
+
+- **Publish Output Correctness (`-38 MB`)**: the three external engine files (`N_m3u8DL-RE.exe`, `ffmpeg.exe`, `m3u8_cf_bypass.py`) are now marked `ExcludeFromSingleFile`. Under `PublishSingleFile=true` the SDK's `_ComputeFilesToBundle` claims every `ResolvedFileToPublish` item that lacks that marker and removes it from the publish list; since the engine binaries are not managed assemblies the bundler could not embed them, so they were silently dropped from the output directory. The stray `ffmpeg.exe` also inflated the GUI executable itself — it is back to its true ~63 MB from the erroneous ~101 MB.
+
+---
+
 ## [2.1.7] - 2026-09-15
 
 ### Added
@@ -419,6 +436,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Highlights                                                |
 | ------- | ---------- | --------------------------------------------------------- |
+| 2.1.8   | 2026-09-15 | Silent-failure detection fixed (recovery pipeline restored), truncated-download detection, publish output fixed (-38 MB), 711 tests |
 | 2.1.7   | 2026-09-15 | 23-icon 24-grid vector set (emoji removed), 15 new design tokens, control-template rewrite, filled inputs, empty-state card, extension popup alignment, 702 tests |
 | 2.1.6   | 2026-09-15 | Dark/Light themes, severity-coloured log, per-tool auto-update, log noise fix, -11 MB (WinForms removed), 702 tests |
 | 2.1.5   | 2026-08-14 | Parallel batch, socket exhaustion fix, OOM fix, DOS device protection, 245 tests |

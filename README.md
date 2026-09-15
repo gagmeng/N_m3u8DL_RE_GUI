@@ -56,16 +56,17 @@
 
 <!-- GETTING STARTED -->
 
-## What's New in 2.1.7 (2026-09-15)
+## What's New in 2.1.8 (2026-09-15)
 
-This release is a full interface overhaul: the GUI now runs on an iOS-flavoured design system instead of the previous ad-hoc styling.
+This release fixes a failure-detection bug that could leave a failed download looking successful — and silently skipped every recovery path.
 
-- **Redesigned interface** - grouped inset cards, filled text fields with a visible focus ring, capsule buttons, switches for mode-style options, overlay scrollbars and a 4px progress groove, all driven by 34 theme tokens (up from 19).
-- **Every emoji replaced by a hand-drawn SVG icon** - 23 single-line glyphs on a 24x24 grid (1.5px stroke), shared by the desktop app and the browser extension popup. No icon font and no image assets.
-- **Themed window title bar** - the native title bar now follows the active theme (dark caption in dark mode, light in light mode) on startup and after every runtime theme switch, for both the main window and the stream picker.
-- **WCAG AA text contrast on every surface** - secondary labels, selected rows and hover states were measured and corrected, and the test suite now asserts those pairs so they cannot silently regress.
-- **Layout polish** - one spacing ladder instead of seven ad-hoc steps, right-aligned label columns, uniform control heights, a dedicated empty-state card, and an empty URL no longer paints an error outline on first paint.
-- **704 automated tests pass**, 0 failed (1 skipped: live-network integration).
+- **Silent failures no longer pass as success** - N_m3u8DL-RE writes its terminal record as `ERROR: Failed`, with no space before the colon (unlike `WARN : ...`). The GUI's record splitter required that space, so the failure line stayed glued to the end of a progress row, was never classified, and — because the engine exits with code 0 even on failure — the run was reported as "Process finished successfully!". Retries, the Cloudflare fallback and the **Allow Missing Segments** merge were all bypassed. The splitter now accepts both forms, and progress frames are classified too, so a glued signature is caught either way.
+- **Truncated downloads are now detected** - a run that exits 0 while the video bar is still short of its segment total is treated as a failure, even when the engine logged nothing. The check reads the `Vid ` bar specifically, so an idle `Sub` row cannot false-positive.
+- **Recovery pipeline restored** - auto-retry, CF-bypass fallback and partial-segment merge now run as configured, including after a retry that leaves segments missing.
+- **Publish output fixed (-38 MB)** - the bundled `N_m3u8DL-RE.exe` / `ffmpeg.exe` are no longer swallowed by the single-file bundler, so they are reliably present in the release folder; the GUI executable is back to its true ~63 MB (it had been inflated to ~101 MB by a stray `ffmpeg.exe` in the bundle).
+- **711 automated tests pass**, 0 failed (1 skipped: live-network integration).
+
+> Also visible in this release: the failure record now renders **red** in the log instead of the progress-row colour.
 
 ## Getting Started (Installation)
 
@@ -73,14 +74,14 @@ We have intentionally kept the installation process as simple as possible. No in
 
 ### 1. Download
 
-Download the latest release (`N_m3u8DL_RE_GUI_v2.1.7.zip`) from our [GitHub Releases](https://github.com/naravid19/N_m3u8DL_RE_GUI/releases) page.
+Download the latest release (`N_m3u8DL_RE_GUI_v2.1.8.zip`) from our [GitHub Releases](https://github.com/naravid19/N_m3u8DL_RE_GUI/releases) page.
 
 ### 2. Extract
 
 Extract the `.zip` file anywhere on your computer. Inside the folder, you will find exactly **4 core files** that power everything:
 
 ```text
-N_m3u8DL_RE_GUI_v2.1.7/
+N_m3u8DL_RE_GUI_v2.1.8/
 ├── N_m3u8DL_RE_GUI.exe    <-- The main application (Double click this!)
 ├── N_m3u8DL-RE.exe        <-- The core download engine
 ├── ffmpeg.exe             <-- The video/audio muxing engine
@@ -169,7 +170,7 @@ If a website is blocking you with Cloudflare, open the **Network tab (🌐)** an
 - **Severity-Coloured Log** - Log lines are colour-coded like the engine's own console: INFO green, WARN amber, ERROR red, DEBUG dim. Repetitive ffmpeg warnings collapse into a single suppression note; idle 100% progress redraws are deduplicated.
 - **Failure Recovery Pipeline** - On failed downloads the GUI audits the temp segments, auto-retries (reusing existing segments), falls back to the CF-bypass path on TLS blocks, and can merge partial videos with visible gap warnings (see [Troubleshooting](#troubleshooting-failed-downloads)).
 - **Accessible & Keyboard Ready** - High-contrast focus visual indicators, access keys (`Alt+G` for Go, `Alt+S` / `Escape` for Stop), and full UI automation properties.
-- **Automated Test Suite (702 Tests)** - Rock-solid stability backed by 702 unit, integration, contrast, and accessibility tests covering all core models, services, XAML a11y, and view models.
+- **Automated Test Suite (711 Tests)** - Rock-solid stability backed by 711 unit, integration, contrast, and accessibility tests covering all core models, services, XAML a11y, and view models.
 
 ### Download Options
 - **Concurrent Downloads** - Download multiple streams simultaneously.
