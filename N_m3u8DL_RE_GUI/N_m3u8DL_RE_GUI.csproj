@@ -3,7 +3,6 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
-    <UseWindowsForms>true</UseWindowsForms>
 
     <AssemblyName>N_m3u8DL_RE_GUI</AssemblyName>
     <RootNamespace>N_m3u8DL_RE_GUI</RootNamespace>
@@ -20,10 +19,12 @@
     <None Include="..\N_m3u8DL-RE.exe" Condition="Exists('..\N_m3u8DL-RE.exe')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>N_m3u8DL-RE.exe</Link>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
     <None Include="..\ffmpeg.exe" Condition="Exists('..\ffmpeg.exe')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>ffmpeg.exe</Link>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
     <None Include="..\m3u8_cf_bypass.py" Condition="Exists('..\m3u8_cf_bypass.py')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

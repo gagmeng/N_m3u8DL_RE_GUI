@@ -4,15 +4,16 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:N_m3u8DL_RE_GUI"
+        xmlns:Controls="clr-namespace:N_m3u8DL_RE_GUI.Controls"
         mc:Ignorable="d"
-        Title="N_m3u8DL-RE GUI v2.1.5" 
+        Title="N_m3u8DL-RE GUI"
         Height="660" Width="920"
         MinHeight="580" MinWidth="800"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         Closing="Window_Closing" 
         Loaded="Window_Loaded"
-        Background="#0D0D0F"
+        Background="{DynamicResource BgBrush}"
         FontFamily="Segoe UI"
         TextOptions.TextFormattingMode="Display"
         DataContext="{Binding Source={StaticResource Locator}, Path=MainViewModel}">
@@ -27,32 +28,16 @@
     </Window.InputBindings>
     
     <Window.Resources>
-        <!-- Color Brushes. Ratios in comments are WCAG 2.1, verified by XamlContrastTests. -->
-        <SolidColorBrush x:Key="BgDarkBrush" Color="#0D0D0F"/>
-        <SolidColorBrush x:Key="SurfaceBrush" Color="#141418"/>
-        <SolidColorBrush x:Key="CardBrush" Color="#1C1C22"/>
-        <!-- #2A2A38 measured 1.20:1 on Card — a border nobody could see. -->
-        <SolidColorBrush x:Key="BorderBrushCustom" Color="#66667C"/>
-        <!-- Accent as a SURFACE (button fill, tab indicator). White on it is 4.61:1. -->
-        <SolidColorBrush x:Key="AccentBrush" Color="#5865F2"/>
-        <!-- Accent as TEXT. #5865F2 was 3.68:1 on Card; this is 5.44:1. -->
-        <SolidColorBrush x:Key="AccentTextBrush" Color="#7A87FF"/>
-        <!-- Hover/pressed darken so contrast rises on interaction, never falls. -->
-        <SolidColorBrush x:Key="AccentHoverBrush" Color="#4350D8"/>
-        <SolidColorBrush x:Key="AccentPressedBrush" Color="#3E4ACB"/>
-        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F2F2F8"/>
-        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#8888A8"/>
-        <SolidColorBrush x:Key="CfAmberBrush" Color="#F39C12"/>
-        <SolidColorBrush x:Key="CommandBarBrush" Color="#0A0A0D"/>
-        <SolidColorBrush x:Key="CommandTextBrush" Color="#A8C0FF"/>
-        <SolidColorBrush x:Key="DropLabelBrush" Color="#EC7063"/>
+        <!-- Color brushes live in Themes/Theme.Dark.xaml and Themes/Theme.Light.xaml,
+             merged at App level and swapped at runtime by ThemeManager. All references
+             are DynamicResource so a theme switch re-colours the rendered tree. -->
 
         <!-- Accessible Focus Visual Style for high visibility keyboard navigation -->
         <Style x:Key="AccessibleFocusVisual">
             <Setter Property="Control.Template">
                 <Setter.Value>
                     <ControlTemplate>
-                        <Rectangle Margin="-2" Stroke="{StaticResource AccentBrush}"
+                        <Rectangle Margin="-2" Stroke="{DynamicResource AccentBrush}"
                                    StrokeThickness="2" StrokeDashArray="1 1"
                                    SnapsToDevicePixels="True"/>
                     </ControlTemplate>
@@ -62,7 +47,7 @@
 
         <!-- Label Style -->
         <Style x:Key="LabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Margin" Value="0,0,8,0"/>
@@ -70,13 +55,13 @@
         
         <!-- TextBox Style -->
         <Style x:Key="TextBoxStyle" TargetType="TextBox">
-            <Setter Property="Background" Value="{StaticResource CardBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrushCustom}"/>
+            <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushCustom}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="6,4"/>
-            <Setter Property="CaretBrush" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="FocusVisualStyle" Value="{StaticResource AccessibleFocusVisual}"/>
             <Style.Triggers>
@@ -86,34 +71,34 @@
                      from TextBox_URL, TextBox_Proxy and TextBox_EXE. Declared first so the
                      focus and hover triggers below still win while the field is active. -->
                 <Trigger Property="Tag" Value="invalid">
-                    <Setter Property="BorderBrush" Value="{StaticResource DropLabelBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource DropLabelBrush}"/>
                 </Trigger>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                 </Trigger>
                 <Trigger Property="IsFocused" Value="True">
-                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
         
         <!-- CheckBox Style -->
         <Style x:Key="CheckBoxStyle" TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Margin" Value="0,4"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="FocusVisualStyle" Value="{StaticResource AccessibleFocusVisual}"/>
             <Style.Triggers>
                 <Trigger Property="IsChecked" Value="True">
-                    <Setter Property="Foreground" Value="#2ECC71"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
         
         <!-- Primary Action Button Style -->
         <Style x:Key="ButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="16,6"/>
@@ -123,10 +108,10 @@
             <Setter Property="FocusVisualStyle" Value="{StaticResource AccessibleFocusVisual}"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource AccentHoverBrush}"/>
+                    <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="{StaticResource AccentPressedBrush}"/>
+                    <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -134,15 +119,15 @@
         <!-- Secondary Button Style -->
         <Style x:Key="SecondaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrushCustom}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushCustom}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,4"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FocusVisualStyle" Value="{StaticResource AccessibleFocusVisual}"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource BorderBrushCustom}"/>
+                    <Setter Property="Background" Value="{DynamicResource BorderBrushCustom}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -173,8 +158,8 @@
         
         <!-- GroupBox Style with full dark-theme template -->
         <Style x:Key="GroupBoxStyle" TargetType="GroupBox">
-            <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrushCustom}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushCustom}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
             <Setter Property="Padding" Value="10"/>
@@ -188,7 +173,7 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
                             <!-- Header pill -->
-                            <Border Grid.Row="0" Background="{StaticResource CardBrush}"
+                            <Border Grid.Row="0" Background="{DynamicResource CardBrush}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="1,1,1,0"
                                     Padding="10,5" CornerRadius="3,3,0,0">
@@ -199,7 +184,7 @@
                                                   TextBlock.FontSize="11"/>
                             </Border>
                             <!-- Content area -->
-                            <Border Grid.Row="1" Background="{StaticResource CardBrush}"
+                            <Border Grid.Row="1" Background="{DynamicResource CardBrush}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="1,0,1,1"
                                     Padding="{TemplateBinding Padding}"
@@ -214,32 +199,32 @@
 
         <!-- Dark ContextMenu Style -->
         <Style TargetType="ContextMenu">
-            <Setter Property="Background" Value="{StaticResource CardBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrushCustom}"/>
+            <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushCustom}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="2"/>
         </Style>
         <Style TargetType="MenuItem">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Padding" Value="8,4"/>
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                    <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
                     <Setter Property="Foreground" Value="#FFFFFF"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
         <Style TargetType="Separator">
-            <Setter Property="Background" Value="{StaticResource BorderBrushCustom}"/>
+            <Setter Property="Background" Value="{DynamicResource BorderBrushCustom}"/>
             <Setter Property="Height" Value="1"/>
             <Setter Property="Margin" Value="4,2"/>
         </Style>
 
         <!-- Dark ScrollBar / ScrollViewer -->
         <Style TargetType="ScrollBar">
-            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
             <Setter Property="Width" Value="8"/>
             <Setter Property="MinWidth" Value="8"/>
         </Style>
@@ -261,40 +246,40 @@
                     </Grid.ColumnDefinitions>
                     <Path x:Name="arrow" Grid.Column="1"
                           Data="M 0 0 L 4 4 L 8 0 Z"
-                          Fill="{StaticResource TextSecondaryBrush}"
+                          Fill="{DynamicResource TextSecondaryBrush}"
                           HorizontalAlignment="Center"
                           VerticalAlignment="Center"/>
                 </Grid>
             </Border>
             <ControlTemplate.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter TargetName="templateRoot" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-                    <Setter TargetName="arrow" Property="Fill" Value="{StaticResource TextPrimaryBrush}"/>
+                    <Setter TargetName="templateRoot" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                    <Setter TargetName="arrow" Property="Fill" Value="{DynamicResource TextPrimaryBrush}"/>
                 </Trigger>
             </ControlTemplate.Triggers>
         </ControlTemplate>
 
         <!-- ComboBox Dark Theme Styling (Fixes White Dropdown & Light Box Bug) -->
         <Style x:Key="ComboBoxItemStyle" TargetType="ComboBoxItem">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="Background" Value="{StaticResource CardBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
             <Setter Property="Padding" Value="8,5"/>
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                    <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
                     <Setter Property="Foreground" Value="#FFFFFF"/>
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{StaticResource BorderBrushCustom}"/>
-                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                    <Setter Property="Background" Value="{DynamicResource BorderBrushCustom}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style TargetType="ComboBox">
-            <Setter Property="Background" Value="{StaticResource CardBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrushCustom}"/>
+            <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushCustom}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="8,4"/>
             <Setter Property="MinHeight" Value="26"/>
@@ -329,8 +314,8 @@
                                    PopupAnimation="Slide"
                                    Placement="Bottom">
                                 <Border x:Name="dropDownBorder"
-                                        Background="{StaticResource CardBrush}"
-                                        BorderBrush="{StaticResource BorderBrushCustom}"
+                                        Background="{DynamicResource CardBrush}"
+                                        BorderBrush="{DynamicResource BorderBrushCustom}"
                                         BorderThickness="1"
                                         MinWidth="{Binding ActualWidth, ElementName=mainGrid}"
                                         MaxHeight="{TemplateBinding MaxDropDownHeight}">
@@ -344,8 +329,8 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                                <Setter TargetName="toggleButton" Property="Background" Value="#141418"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                                <Setter TargetName="toggleButton" Property="Background" Value="{DynamicResource DisabledSurfaceBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -355,7 +340,7 @@
 
         <!-- Vertical TabControl Navigation Style -->
         <Style x:Key="LeftTabItemStyle" TargetType="TabItem">
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Padding" Value="14,10"/>
             <Setter Property="Margin" Value="0,2"/>
@@ -367,7 +352,7 @@
                     <ControlTemplate TargetType="TabItem">
                         <Border x:Name="TabBorder"
                                 Background="{TemplateBinding Background}"
-                                BorderBrush="{StaticResource AccentBrush}"
+                                BorderBrush="{DynamicResource AccentBrush}"
                                 BorderThickness="0,0,0,0"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter x:Name="ContentSite"
@@ -378,13 +363,13 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="TabBorder" Property="Background" Value="#1C1C22"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource CardBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="TabBorder" Property="Background" Value="#1C1C22"/>
+                                <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource CardBrush}"/>
                                 <Setter TargetName="TabBorder" Property="BorderThickness" Value="3,0,0,0"/>
-                                <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -401,8 +386,8 @@
         </Grid.RowDefinitions>
 
         <!-- ================== ZONE A: TOP DOCK ================== -->
-        <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" 
-                BorderBrush="{StaticResource BorderBrushCustom}" BorderThickness="1"
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" 
+                BorderBrush="{DynamicResource BorderBrushCustom}" BorderThickness="1"
                 Padding="12" Margin="0,0,0,10">
             <StackPanel>
                 <!-- Title Row -->
@@ -412,27 +397,36 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="N_m3u8DL-RE GUI" FontSize="18" FontWeight="Bold" Foreground="{StaticResource AccentTextBrush}"/>
-                        <TextBlock Text="v2.1.5" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Bottom" Margin="8,0,0,2"/>
+                        <TextBlock Text="N_m3u8DL-RE GUI" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}"/>
                         <Button x:Name="Button_UpdateBadge" AutomationProperties.Name="New Version Available" Visibility="Collapsed"
                                 Style="{StaticResource UpdatePillButtonStyle}"
                                 Margin="10,0,0,0"
                                 Click="Button_UpdateBadge_Click"
                                 ToolTip="Click to view and download latest release on GitHub"/>
                     </StackPanel>
-                    <CheckBox Grid.Column="1" x:Name="CheckBox_TopMost" AutomationProperties.Name="Always on Top" Style="{StaticResource CheckBoxStyle}"
-                              Content="Always on Top" ToolTip="Keep window on top"
-                              Checked="SetTopMost" Unchecked="SetTopMost"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Theme" Style="{StaticResource LabelStyle}" Margin="0,0,6,0"/>
+                        <ComboBox x:Name="Combo_Theme"
+                                  AutomationProperties.Name="Application Theme"
+                                  ToolTip="Switch the GUI between the dark and light palettes."
+                                  SelectedIndex="0" SelectionChanged="Combo_Theme_SelectionChanged" MinWidth="84">
+                            <ComboBoxItem Content="Dark"/>
+                            <ComboBoxItem Content="Light"/>
+                        </ComboBox>
+                        <CheckBox x:Name="CheckBox_TopMost" AutomationProperties.Name="Always on Top" Style="{StaticResource CheckBoxStyle}"
+                                  Content="Always on Top" ToolTip="Keep window on top" Margin="12,4,0,4"
+                                  Checked="SetTopMost" Unchecked="SetTopMost"/>
+                    </StackPanel>
                 </Grid>
 
                 <!-- URL Hero Row -->
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="90"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Input URL" Style="{StaticResource LabelStyle}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="Input URL" Style="{StaticResource LabelStyle}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
                     <TextBox Grid.Column="1" x:Name="TextBox_URL" Style="{StaticResource TextBoxStyle}" 
                              FontSize="13" TextChanged="TextChanged" AllowDrop="True"
                              PreviewKeyDown="TextBox_URL_PreviewKeyDown"
@@ -471,15 +465,14 @@
                 <!-- Quick Path Sub-row -->
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="90"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="15"/>
-                        <ColumnDefinition Width="70"/>
+                        <ColumnDefinition Width="90"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="Save Dir" Style="{StaticResource LabelStyle}"/>
-                    <TextBox Grid.Column="1" x:Name="TextBox_WorkDir" Style="{StaticResource TextBoxStyle}" 
+                    <TextBox Grid.Column="1" x:Name="TextBox_WorkDir" Style="{StaticResource TextBoxStyle}"
                              TextChanged="TextChanged"
                              AutomationProperties.Name="Save Directory Path"
                              ToolTip="Output directory for downloads"/>
@@ -487,8 +480,8 @@
                             Click="Button_SelectDir_Click" Margin="6,0,0,0"
                             AutomationProperties.Name="Browse Save Directory"/>
 
-                    <TextBlock Grid.Column="4" Text="Save Name" Style="{StaticResource LabelStyle}"/>
-                    <TextBox Grid.Column="5" x:Name="TextBox_Title" Style="{StaticResource TextBoxStyle}" 
+                    <TextBlock Grid.Column="3" Text="Save Name" Style="{StaticResource LabelStyle}" Margin="12,0,8,0"/>
+                    <TextBox Grid.Column="4" x:Name="TextBox_Title" Style="{StaticResource TextBoxStyle}"
                              TextChanged="TextChanged"
                              PreviewKeyDown="TextBox_Title_PreviewKeyDown"
                              MouseDoubleClick="TextBox_Title_MouseDoubleClick"
@@ -499,7 +492,7 @@
         </Border>
 
         <!-- ================== ZONE B & C: LEFT NAV SIDEBAR + MAIN CONTENT ================== -->
-        <TabControl Grid.Row="1" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrushCustom}" BorderThickness="1" TabStripPlacement="Left" MinWidth="160">
+        <TabControl Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrushCustom}" BorderThickness="1" TabStripPlacement="Left" MinWidth="160">
             <TabControl.Resources>
                 <Style TargetType="TabItem" BasedOn="{StaticResource LeftTabItemStyle}"/>
             </TabControl.Resources>
@@ -691,17 +684,17 @@
                         <!-- Cloudflare Bypass Section -->
                         <!-- "curl__cffi": the header ContentPresenter sets RecognizesAccessKey="True",
                              so WPF's AccessText eats a single underscore. Doubling it renders one. -->
-                        <GroupBox Header="⚡ Cloudflare Bypass (curl__cffi)" Style="{StaticResource GroupBoxStyle}" Foreground="{StaticResource CfAmberBrush}">
+                        <GroupBox Header="⚡ Cloudflare Bypass (curl__cffi)" Style="{StaticResource GroupBoxStyle}" Foreground="{DynamicResource CfAmberBrush}">
                             <StackPanel>
                                 <CheckBox x:Name="CheckBox_BypassCF" AutomationProperties.Name="Enable Cloudflare Bypass" Content="Enable Cloudflare Bypass"
-                                          Foreground="{StaticResource CfAmberBrush}" FontWeight="SemiBold" Margin="0,0,0,6"
+                                          Foreground="{DynamicResource CfAmberBrush}" FontWeight="SemiBold" Margin="0,0,0,6"
                                           Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"/>
                                 
                                 <Border x:Name="Border_CfScopeWarning" Visibility="Collapsed"
-                                        Background="#2A2113" BorderBrush="{StaticResource CfAmberBrush}"
+                                        Background="{DynamicResource CfWarningBgBrush}" BorderBrush="{DynamicResource CfAmberBrush}"
                                         BorderThickness="1" CornerRadius="3" Padding="8,6" Margin="0,0,0,8">
                                     <TextBlock TextWrapping="Wrap" FontSize="11"
-                                               Foreground="{StaticResource CfAmberBrush}"
+                                               Foreground="{DynamicResource CfAmberBrush}"
                                                AutomationProperties.Name="Cloudflare Mode Scope Warning"
                                                Text="Cloudflare mode runs a Python script instead of N_m3u8DL-RE. It uses only the input URL, save folder, save name, and the fields in this section — options on the Download, Security, Media, Live and Advanced tabs are ignored."/>
                                 </Border>
@@ -869,13 +862,13 @@
                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Select Sub" Style="{StaticResource LabelStyle}" Margin="0,6,8,0"/>
                                 <TextBox Grid.Row="2" Grid.Column="1" x:Name="TextBox_SelectSubtitle" AutomationProperties.Name="Select Subtitle Regex" Style="{StaticResource TextBoxStyle}" TextChanged="TextChanged" Margin="0,6,0,0"/>
 
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Drop Video" Style="{StaticResource LabelStyle}" Foreground="{StaticResource DropLabelBrush}" Margin="0,6,8,0"/>
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Drop Video" Style="{StaticResource LabelStyle}" Foreground="{DynamicResource DropLabelBrush}" Margin="0,6,8,0"/>
                                 <TextBox Grid.Row="3" Grid.Column="1" x:Name="TextBox_DropVideo" AutomationProperties.Name="Drop Video Regex" Style="{StaticResource TextBoxStyle}" TextChanged="TextChanged" Margin="0,6,0,0"/>
 
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Drop Audio" Style="{StaticResource LabelStyle}" Foreground="{StaticResource DropLabelBrush}" Margin="0,6,8,0"/>
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Drop Audio" Style="{StaticResource LabelStyle}" Foreground="{DynamicResource DropLabelBrush}" Margin="0,6,8,0"/>
                                 <TextBox Grid.Row="4" Grid.Column="1" x:Name="TextBox_DropAudio" AutomationProperties.Name="Drop Audio Regex" Style="{StaticResource TextBoxStyle}" TextChanged="TextChanged" Margin="0,6,0,0"/>
 
-                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Drop Sub" Style="{StaticResource LabelStyle}" Foreground="{StaticResource DropLabelBrush}" Margin="0,6,8,0"/>
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Drop Sub" Style="{StaticResource LabelStyle}" Foreground="{DynamicResource DropLabelBrush}" Margin="0,6,8,0"/>
                                 <TextBox Grid.Row="5" Grid.Column="1" x:Name="TextBox_DropSubtitle" AutomationProperties.Name="Drop Subtitle Regex" Style="{StaticResource TextBoxStyle}" TextChanged="TextChanged" Margin="0,6,0,0"/>
                             </Grid>
                         </GroupBox>
@@ -891,7 +884,7 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="Range" Style="{StaticResource LabelStyle}"/>
                                     <TextBox Grid.Column="1" x:Name="TextBox_RangeStart" AutomationProperties.Name="Time Range Start" Text="00:00:00" Style="{StaticResource TextBoxStyle}" TextChanged="TextChanged"/>
-                                    <TextBlock Grid.Column="2" Text="—" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    <TextBlock Grid.Column="2" Text="—" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                     <TextBox Grid.Column="3" x:Name="TextBox_RangeEnd" AutomationProperties.Name="Time Range End" Text="00:00:00" Style="{StaticResource TextBoxStyle}" TextChanged="TextChanged"/>
                                 </Grid>
 
@@ -1042,16 +1035,12 @@
 
                         <GroupBox Header="Environment &amp; System Flags" Style="{StaticResource GroupBoxStyle}">
                             <StackPanel>
-                                <Grid Margin="0,4">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="80"/>
-                                        <ColumnDefinition Width="100"/>
-                                        <ColumnDefinition Width="20"/>
-                                        <ColumnDefinition Width="80"/>
-                                        <ColumnDefinition Width="100"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Log Level" Style="{StaticResource LabelStyle}"/>
-                                    <ComboBox Grid.Column="1" x:Name="Combo_LogLevel" AutomationProperties.Name="Downloader Log Level" SelectedIndex="2" SelectionChanged="Combo_LogLevel_SelectionChanged">
+                                <!-- Two label/combo pairs packed left with even spacing: Auto
+                                     columns keep each label tight to its combo, so the pair
+                                     never drifts apart or gets pushed right. -->
+                                <StackPanel Orientation="Horizontal" Margin="0,4">
+                                    <TextBlock Text="Log Level" Style="{StaticResource LabelStyle}"/>
+                                    <ComboBox x:Name="Combo_LogLevel" AutomationProperties.Name="Downloader Log Level" SelectedIndex="2" SelectionChanged="Combo_LogLevel_SelectionChanged" MinWidth="90">
                                         <ComboBoxItem Content="DEBUG"/>
                                         <ComboBoxItem Content="ERROR"/>
                                         <ComboBoxItem Content="INFO"/>
@@ -1059,17 +1048,18 @@
                                         <ComboBoxItem Content="OFF"/>
                                     </ComboBox>
 
-                                    <TextBlock Grid.Column="3" Text="DL Language" Style="{StaticResource LabelStyle}"/>
-                                    <ComboBox Grid.Column="4" x:Name="Combo_UILanguage"
+                                    <TextBlock Text="Engine Language" Style="{StaticResource LabelStyle}" Margin="16,0,0,0"
+                                               ToolTip="Language for N_m3u8DL-RE's own console output (log and status lines). This does not change the GUI's language."/>
+                                    <ComboBox x:Name="Combo_UILanguage"
                                               AutomationProperties.Name="Downloader Console Language"
-                                              ToolTip="Language for N_m3u8DL-RE's own console output. This does not change the GUI's language."
-                                              SelectedIndex="0" SelectionChanged="Combo_UILanguage_SelectionChanged">
+                                              ToolTip="Language for N_m3u8DL-RE's own console output (log and status lines). This does not change the GUI's language."
+                                              SelectedIndex="0" SelectionChanged="Combo_UILanguage_SelectionChanged" MinWidth="90" Margin="8,0,0,0">
                                         <ComboBoxItem Content="(Default)"/>
                                         <ComboBoxItem Content="en-US"/>
                                         <ComboBoxItem Content="zh-CN"/>
                                         <ComboBoxItem Content="zh-TW"/>
                                     </ComboBox>
-                                </Grid>
+                                </StackPanel>
 
                                 <Grid Margin="0,10,0,0">
                                     <Grid.ColumnDefinitions>
@@ -1094,19 +1084,41 @@
                                     <CheckBox Grid.Row="2" Grid.Column="0" x:Name="CheckBox_ForceAnsiConsole" AutomationProperties.Name="Force ANSI Console" Style="{StaticResource CheckBoxStyle}" Content="Force ANSI Console" Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"/>
                                     <CheckBox Grid.Row="2" Grid.Column="1" x:Name="CheckBox_NoAnsiColor" AutomationProperties.Name="Disable ANSI Color" Style="{StaticResource CheckBoxStyle}" Content="No ANSI Color" Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"/>
                                 </Grid>
+
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <CheckBox Grid.Row="0" Grid.Column="0" x:Name="CheckBox_AutoRetry" AutomationProperties.Name="Retry Failed Downloads Automatically" Style="{StaticResource CheckBoxStyle}" Content="Auto Retry on Failure" IsChecked="True" Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"/>
+                                    <CheckBox Grid.Row="0" Grid.Column="1" x:Name="CheckBox_AutoCfFallback" AutomationProperties.Name="Fall Back To Cloudflare Bypass On 404 403" Style="{StaticResource CheckBoxStyle}" Content="CF Fallback on 404/403" IsChecked="True" Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"/>
+                                    <CheckBox Grid.Row="0" Grid.Column="2" x:Name="CheckBox_AllowMissingSegments" AutomationProperties.Name="Merge Partial Video When Segments Missing" Style="{StaticResource CheckBoxStyle}" Content="Allow Missing Segments" Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"/>
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Text="Failure recovery: retries reuse existing segments; CF fallback uses a browser TLS fingerprint; the merge option keeps a video with possible gaps."
+                                               Style="{StaticResource LabelStyle}" TextWrapping="Wrap" Margin="0,4,0,0" FontSize="11" Opacity="0.75"/>
+                                </Grid>
                             </StackPanel>
                         </GroupBox>
 
-                        <GroupBox Header="🔄 GUI Auto-Update Engine" Style="{StaticResource GroupBoxStyle}">
+                        <GroupBox Header="🔄 Auto-Update Engine" Style="{StaticResource GroupBoxStyle}">
                             <StackPanel>
+                                <!-- One independent row per updatable component: its own
+                                     auto-check toggle, manual Check Now button, and status. -->
                                 <Grid Margin="0,4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <CheckBox x:Name="CheckBox_AutoCheckGuiUpdate" AutomationProperties.Name="Auto Check GUI Updates On Startup" Style="{StaticResource CheckBoxStyle}"
-                                              Content="Auto Check GUI Updates on Startup" IsChecked="True"
-                                              Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"/>
+                                              Content="GUI Updates" IsChecked="True"
+                                              Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"
+                                              ToolTip="Check for GUI updates when the app starts"/>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock x:Name="TextBlock_UpdateStatus" Text="" Style="{StaticResource LabelStyle}" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                         <Button x:Name="Button_CheckUpdate" AutomationProperties.Name="Check For GUI Updates Now" Content="Check Now"
@@ -1114,6 +1126,62 @@
                                                 Click="Button_CheckUpdate_Click" Padding="10,3"/>
                                     </StackPanel>
                                 </Grid>
+
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox x:Name="CheckBox_AutoCheckNReUpdate" AutomationProperties.Name="Auto Check N_m3u8DL-RE Updates On Startup" Style="{StaticResource CheckBoxStyle}"
+                                              Content="N_m3u8DL-RE Updates" IsChecked="True"
+                                              Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"
+                                              ToolTip="Check the bundled N_m3u8DL-RE build against its GitHub releases when the app starts"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock x:Name="TextBlock_NReStatus" Text="" Style="{StaticResource LabelStyle}" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                   AutomationProperties.Name="N_m3u8DL-RE Update Status" AutomationProperties.LiveSetting="Polite"/>
+                                        <Button x:Name="Button_CheckNRe" AutomationProperties.Name="Check N_m3u8DL-RE Updates Now" Content="Check Now"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="Button_CheckNRe_Click" Padding="10,3"
+                                                ToolTip="Compare the local N_m3u8DL-RE build against its latest GitHub release"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox x:Name="CheckBox_AutoCheckFfmpegUpdate" AutomationProperties.Name="Auto Check FFmpeg Updates On Startup" Style="{StaticResource CheckBoxStyle}"
+                                              Content="FFmpeg Updates" IsChecked="True"
+                                              Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"
+                                              ToolTip="Check the bundled FFmpeg build against its latest GitHub release when the app starts"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock x:Name="TextBlock_FfmpegStatus" Text="" Style="{StaticResource LabelStyle}" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                   AutomationProperties.Name="FFmpeg Update Status" AutomationProperties.LiveSetting="Polite"/>
+                                        <Button x:Name="Button_CheckFfmpeg" AutomationProperties.Name="Check FFmpeg Updates Now" Content="Check Now"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="Button_CheckFfmpeg_Click" Padding="10,3"
+                                                ToolTip="Compare the local FFmpeg build against its latest GitHub release"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Style="{StaticResource LabelStyle}" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0" Opacity="0.75"
+                                           Text="When an update is found, the button opens the release page — replace the exe next to the GUI to apply it."/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="🧰 Third-Party Tools" Style="{StaticResource GroupBoxStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource LabelStyle}" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0"
+                                           Text="This GUI is a front-end and bundles two independent command-line tools. They are separate projects with their own licenses and releases:"/>
+                                <TextBlock Style="{StaticResource LabelStyle}" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0">
+                                    <Run Text="• "/><Hyperlink Click="Hyperlink_Nilaoda_Click" AutomationProperties.Name="N_m3u8DL-RE GitHub Page"><Run Text="N_m3u8DL-RE"/></Hyperlink><Run Text=" — the download/decrypt/merge engine that this GUI drives. Handles HLS/DASH/ISM streams, AES-128 decryption and segment merging." Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                </TextBlock>
+                                <TextBlock Style="{StaticResource LabelStyle}" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0">
+                                    <Run Text="• "/><Hyperlink Click="Hyperlink_Ffmpeg_Click" AutomationProperties.Name="FFmpeg GitHub Page"><Run Text="FFmpeg"/></Hyperlink><Run Text=" — multimedia framework used to demux, mux and remux downloaded segments into the final media file." Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                </TextBlock>
+                                <TextBlock Style="{StaticResource LabelStyle}" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0" Opacity="0.75"
+                                           Text="Replace the exes next to the GUI to upgrade either tool, or use the engine update check above."/>
                             </StackPanel>
                         </GroupBox>
                     </StackPanel>
@@ -1122,14 +1190,14 @@
         </TabControl>
 
         <!-- ================== ZONE D: STATUS + LOG + COMMAND BAR ================== -->
-        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrushCustom}" BorderThickness="1"
+        <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrushCustom}" BorderThickness="1"
                 Padding="8" Margin="0,10,0,0">
             <StackPanel>
                 <!-- Status strip -->
                 <Grid Margin="0,0,0,6">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="140"/>
+                        <ColumnDefinition Width="180"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
@@ -1137,8 +1205,8 @@
 
                     <ProgressBar x:Name="ProgressBar_Download" Grid.Column="0"
                                  Height="8" Minimum="0" Maximum="100" Value="0"
-                                 Background="{StaticResource CardBrush}"
-                                 Foreground="{StaticResource AccentBrush}"
+                                 Background="{DynamicResource CardBrush}"
+                                 Foreground="{DynamicResource AccentBrush}"
                                  BorderThickness="0" VerticalAlignment="Center"
                                  AutomationProperties.Name="Download Progress"/>
 
@@ -1157,21 +1225,20 @@
 
                     <ToggleButton x:Name="ToggleButton_Log" Grid.Column="3" Content="Log"
                                   Padding="8,2" FontSize="11" Cursor="Hand"
-                                  Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
-                                  BorderBrush="{StaticResource BorderBrushCustom}" BorderThickness="1"
+                                  Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}"
+                                  BorderBrush="{DynamicResource BorderBrushCustom}" BorderThickness="1"
                                   Checked="ToggleButton_Log_Changed" Unchecked="ToggleButton_Log_Changed"
                                   AutomationProperties.Name="Toggle Download Log"
                                   ToolTip="Show or hide the download log"/>
                 </Grid>
 
-                <!-- Log panel (collapsed by default) -->
-                <TextBox x:Name="TextBox_Log" Visibility="Collapsed"
+                <!-- Log panel (collapsed by default); RichTextBox so records can be
+                     colour-coded by severity (ERROR red, WARN amber, DEBUG/EXTRA dim). -->
+                <Controls:LogViewer x:Name="TextBox_Log" Visibility="Collapsed"
                          Height="150" Margin="0,0,0,6"
-                         IsReadOnly="True" TextWrapping="NoWrap"
-                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                         Background="{StaticResource CommandBarBrush}"
-                         Foreground="{StaticResource TextPrimaryBrush}"
-                         BorderBrush="{StaticResource BorderBrushCustom}" BorderThickness="1"
+                         Background="{DynamicResource CommandBarBrush}"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
+                         BorderBrush="{DynamicResource BorderBrushCustom}" BorderThickness="1"
                          FontFamily="Consolas" FontSize="11"
                          AutomationProperties.Name="Download Log"/>
 
@@ -1186,7 +1253,7 @@
                     <TextBox Grid.Column="1" x:Name="TextBox_Parameter" Style="{StaticResource TextBoxStyle}"
                              IsReadOnly="True" ToolTip="Generated command-line arguments"
                              AutomationProperties.Name="Generated Command Preview"
-                             Background="{StaticResource CommandBarBrush}" FontFamily="Consolas" FontSize="11" Foreground="{StaticResource CommandTextBrush}"/>
+                             Background="{DynamicResource CommandBarBrush}" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource CommandTextBrush}"/>
                     <Button Grid.Column="2" x:Name="Button_CopyCommand" Content="📋 Copy"
                             Style="{StaticResource SecondaryButtonStyle}"
                             Click="Button_CopyCommand_Click" Margin="6,0,0,0" Padding="8,2" FontSize="11"

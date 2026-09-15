@@ -7,11 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [2.1.6] - 2026-09-15
+
+### Added
+
+- **Dark / Light Theme Switching**:
+  - Palette moved from `MainWindow.xaml` into two app-level resource dictionaries (`Themes/Theme.Dark.xaml`, `Theme.Light.xaml`, 19 tokens each); all brush references converted from `StaticResource` to `DynamicResource` so a theme swap re-colours the whole rendered tree without a restart.
+  - `ThemeManager` swaps the merged dictionary at runtime; `Theme` combo in the Zone A title bar switches instantly, the choice persists in `config.json` (`Theme` key) and is applied before the first frame on startup.
+  - Light palette fully passes WCAG AA (4.5:1 text, 3:1 boundaries) — verified per-theme by `XamlContrastTests` against both dictionary files; the accent ramp shifts one step darker, semantic amber/red/green tokens are deepened for light backgrounds.
+  - `StreamPickerWindow` follows the active theme automatically (local palette removed).
+- **Severity-Coloured Log Viewer (`Controls/LogViewer`)**:
+  - Replaced the log `TextBox` with a `RichTextBox`-based viewer colour-coding every line by the engine's record stamp: INFO green, WARN amber, ERROR red, DEBUG/EXTRA dim — mirroring N_m3u8DL-RE's own console palette. GUI-generated lines follow the same scheme (failure wording turns red). Colours are resource references, so theme switches also re-colour history.
+- **Independent Auto-Update Engine (GUI / N_m3u8DL-RE / FFmpeg)**:
+  - The update group now has one row per component, each with its own auto-check toggle (persisted: `AutoCheckNReUpdate`, `AutoCheckFfmpegUpdate`), manual "Check Now" button, and status line.
+  - `EngineUpdateCheckService` (Core) probes the local binaries (`--version` / `-version`) and compares them against the latest GitHub release via the `releases/latest` redirect (no API rate limit). N_m3u8DL-RE tracks `nilaoda/N_m3u8DL-RE`; FFmpeg tracks GyanD essentials builds (`GyanD/codexffmpeg`), the same source as the bundled binary. Finding an update opens the release page (replacing a running binary in place is unsafe).
+- **Third-Party Tools Section (Advanced tab)**:
+  - Documents the two bundled engines with clickable GitHub links and a one-line summary of what each does.
+- **Download Recovery Pipeline (Failure Audit & Partial Merge)**:
+  - `SegmentAuditService` audits the temp segment directory against `raw.m3u8` after a failed run, reporting exactly how many segments are present/missing.
+  - Auto-retry orchestration: failed engine attempts reuse existing segments; CF-bypass fallback (browser TLS fingerprint) triggers on 404/403 symptom signatures; "Allow Missing Segments" produces a best-effort ffmpeg concat merge with a visible gap warning.
+  - README gained a "Troubleshooting Failed Downloads" table covering the three failure causes and their remedies.
+
+### Changed
+
+- **Log Noise Reduction**:
+  - Fixed the burst-suppression window (ffmpeg "Packet corrupt" storms): alternating warning shapes no longer reset each other's counters — a sliding window collapses a sustained storm into one representative per shape plus a single merged "… N similar messages suppressed." note.
+  - Identical progress frames (100% idle redraws during the ffmpeg merge) are now signature-deduplicated, eliminating dozens of repeated "1268/1268 100%" log lines.
+- **UI Layout Optimizations**:
+  - Settings combo rows moved to auto-sized label columns (no more truncated "Theme" label); Theme switch relocated to the Zone A title bar; unified 90px label columns across Zone A rows; wider status-bar progress bar.
+  - "DL Language" renamed to "Engine Language" with a clearer tooltip (it controls N_m3u8DL-RE's console output language, not the GUI's).
+  - In-page version badge removed — the title bar already carries the version.
+- **Binary Size (-11 MB)**: removed the WinForms dependency (`UseWindowsForms=false`); the only usage (`FolderBrowserDialog`) now uses WPF's native `OpenFolderDialog`. Self-contained single-file exe is ~101 MB, >99% of which is the .NET 9 runtime + WPF.
+- **Publishing**: `N_m3u8DL-RE.exe` / `ffmpeg.exe` are now copied into the publish output by the csproj (`CopyToPublishDirectory`), no manual copy step.
+- **Exit Safety**: closing the GUI now terminates the engine process tree (N_m3u8DL-RE + ffmpeg/python children) before saving config, so downloads never keep running orphaned.
+
+### Fixed
+
+- Corrected the window title deriving only (not the badge) from the assembly version after badge removal; version text stays single-sourced from `AssemblyInfo`.
+- 702 automated tests pass (1 skipped: live-network integration).
 
 ---
 
-## [2.1.5] - 2026-08-23
+## [2.1.5] - 2026-08-20
 
 ### Added
 
@@ -379,7 +416,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Highlights                                                |
 | ------- | ---------- | --------------------------------------------------------- |
-| 2.1.5   | 2026-08-23 | Resume download, SSOT versioning, honest update checks, Abyss downloader, Browser Extension v1.3.0, 969 total tests |
+| 2.1.6   | 2026-09-15 | Dark/Light themes, severity-coloured log, per-tool auto-update, log noise fix, -11 MB (WinForms removed), 702 tests |
+| 2.1.5   | 2026-08-20 | Resume download, SSOT versioning, honest update checks, Abyss downloader, Browser Extension v1.3.0, 969 total tests |
 | 2.1.4   | 2026-08-08 | Windows DPAPI secret protection, lifecycle hardening, 164 tests |
 | 2.1.3   | 2026-08-06 | 3-Zone Modern UX/UI Architecture, Dark Mode ComboBox fixes|
 | 2.1.2   | 2026-08-06 | Dedicated CF Bypass Expander UX/UI, TLS fingerprinting    |
@@ -389,5 +427,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 1.1.0   | 2026-01-13 | Stream settings refactor                                  |
 | 1.0.0   | 2025-08-05 | Initial release                                           |
 
-[Unreleased]: https://github.com/naravid19/N_m3u8DL_RE_GUI/compare/v2.1.5...HEAD
+[Unreleased]: https://github.com/naravid19/N_m3u8DL_RE_GUI/compare/v2.1.6...HEAD
+[2.1.6]: https://github.com/naravid19/N_m3u8DL_RE_GUI/compare/v2.1.5...v2.1.6
 [2.1.5]: https://github.com/naravid19/N_m3u8DL_RE_GUI/compare/v2.1.4...v2.1.5
