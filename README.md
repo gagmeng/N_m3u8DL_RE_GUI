@@ -12,7 +12,7 @@
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
-  <a href="https://github.com/naravid19/N_m3u8DL_RE_GUI">
+  <a href="https://github.com/gagmeng/N_m3u8DL_RE_GUI">
     <img src="images/logo.ico" alt="Logo" width="80" height="80">
   </a>
 
@@ -26,9 +26,9 @@
     <br />
     <a href="#getting-started">Getting Started</a>
     ·
-    <a href="https://github.com/naravid19/N_m3u8DL_RE_GUI/issues/new?labels=bug">Report Bug</a>
+    <a href="https://github.com/gagmeng/N_m3u8DL_RE_GUI/issues/new?labels=bug">Report Bug</a>
     ·
-    <a href="https://github.com/naravid19/N_m3u8DL_RE_GUI/issues/new?labels=enhancement">Request Feature</a>
+    <a href="https://github.com/gagmeng/N_m3u8DL_RE_GUI/issues/new?labels=enhancement">Request Feature</a>
   </p>
 </div>
 
@@ -45,7 +45,6 @@
 ### Main Benefits:
 
 - 🚀 **No command-line memorization** - Common options are available through simple UI controls.
-- ⏯️ **Resume Interrupted Downloads** - Automatically detects stopped or crashed downloads with existing segments on disk. Seamlessly attach a fresh stream link (since signed URLs expire quickly) and resume without losing previously downloaded chunks.
 - 🎬 **Native Abyss & Hydrax Support** - Direct AES-CTR chunk decryption and assembly for `abysscdn.com`, `playhydrax.com`, `zplayer.io`, and `short.ink` without external tools.
 - 📦 **Batch processing** - Download multiple streams from text files or folders with one click.
 - 🔒 **Privacy First** - Your settings and headers are automatically saved between sessions and heavily encrypted using Windows DPAPI.
@@ -75,7 +74,7 @@ We have intentionally kept the installation process as simple as possible. No in
 
 ### 1. Download
 
-Download the latest release (`N_m3u8DL_RE_GUI_v2.1.8.zip`) from our [GitHub Releases](https://github.com/naravid19/N_m3u8DL_RE_GUI/releases) page.
+Download the latest release (`N_m3u8DL_RE_GUI_v2.1.8.zip`) from our [GitHub Releases](https://github.com/gagmeng/N_m3u8DL_RE_GUI/releases) page.
 
 ### 2. Extract
 
@@ -156,7 +155,6 @@ If a website is blocking you with Cloudflare, open the **Network tab (🌐)** an
 
 ### Core Features
 - **Universal Stream Capture** - Paste browser cURL commands directly, drag-and-drop `.har` captures with automated stream ranking and picking, or use the **N-RE Stream Bridge** browser extension.
-- **Resume Interrupted Downloads** - Automatically derives deterministic temp directories (`<saveDir>/.nre-tmp/<saveName>`) and persists active job metadata. On startup, detects unfinished downloads with saved segments, offers a 1-click resume workflow with a fresh stream link, or clean discards.
 - **Native Abyss / Hydrax Downloader** - Built-in zero-dependency C# crypto engine that decrypts and reassembles fragmented chunks from `abysscdn.com`, `playhydrax.com`, `zplayer.io`, and `short.ink`.
 - **3-Zone Modern UX/UI Architecture** - Clean layout with a top URL hero bar, a 6-Tab sidebar (`📦 Download`, `🌐 Network`, `🔒 Security`, `🎬 Media`, `📡 Live`, `⚙️ Advanced`), and a fixed command preview bar at the bottom.
 - **Dark / Light Theme Switching** - One-click theme combo in the title bar; the entire UI (including log history) re-colours instantly without a restart. The Light palette is WCAG AA-verified.
@@ -168,7 +166,6 @@ If a website is blocking you with Cloudflare, open the **Network tab (🌐)** an
 
 ### Security and Stability
 - **Windows DPAPI Secret Protection** - Your custom headers, proxies, decryption keys, and IVs are safely encrypted via Windows DPAPI in your `config.json` file. No plaintext secrets!
-- **Credential Privacy on Resume** - Resume job records intentionally store only the source hostname (never raw stream URLs or signed access tokens).
 - **Thread-Safe Cancellation** - Responsive process cancellation with clean token lifetime management that safely terminates child process trees — closing the GUI also stops any running download.
 - **In-Window Live Feedback & Progress** - Real-time progress bar, live status messages, collapsible diagnostic log, and an "Open Folder" button on completion.
 - **Severity-Coloured Log** - Log lines are colour-coded like the engine's own console: INFO green, WARN amber, ERROR red, DEBUG dim. Repetitive ffmpeg warnings collapse into a single suppression note; idle 100% progress redraws are deduplicated.
@@ -209,7 +206,7 @@ If a website is blocking you with Cloudflare, open the **Network tab (🌐)** an
 
 ### Building a Release
 
-To publish a self-contained, single-file release package:
+Bump the version in `N_m3u8DL_RE_GUI/Properties/AssemblyInfo.cs`, `N_m3u8DL_RE_GUI.Core/N_m3u8DL_RE_GUI.Core.csproj` and the `VERSION` default in `publish.bat`, then run:
 
 ```bash
 dotnet publish N_m3u8DL_RE_GUI\N_m3u8DL_RE_GUI.csproj -c Release -r win-x64 --self-contained true \
@@ -217,7 +214,7 @@ dotnet publish N_m3u8DL_RE_GUI\N_m3u8DL_RE_GUI.csproj -c Release -r win-x64 --se
   -p:EnableCompressionInSingleFile=true
 ```
 
-A complete release archive must contain: `N_m3u8DL_RE_GUI.exe`, `N_m3u8DL-RE.exe`, `ffmpeg.exe`, `m3u8_cf_bypass.py`, and the `extension/` folder. The release packaging derives the version directly from the compiled binary's assembly metadata rather than hardcoded literals to prevent version drift across release artifacts.
+The csproj already copies `N_m3u8DL-RE.exe`, `ffmpeg.exe` and `m3u8_cf_bypass.py` into the output and marks them `ExcludeFromSingleFile` so the bundler leaves them beside the executable. A complete release archive contains those four files plus the optional `extension/` folder.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
