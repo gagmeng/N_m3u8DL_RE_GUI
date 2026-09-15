@@ -334,8 +334,12 @@ public static class ConsoleOutputParser
         return rows;
     }
 
+    // The engine is inconsistent about the space before the colon: "WARN : ..." but
+    // "ERROR: Failed" (no space). Requiring whitespace there left the terminal failure
+    // record glued to the preceding progress frame, so it was never classified as a
+    // record and the run was reported as successful.
     private static readonly Regex RecordStampPattern = new(
-        @"\d{2}:\d{2}:\d{2}\.\d{3} (?:INFO|WARN|ERROR|EXTRA|DEBUG)\s:",
+        @"\d{2}:\d{2}:\d{2}\.\d{3} (?:INFO|WARN|ERROR|EXTRA|DEBUG)\s*:",
         RegexOptions.Compiled);
 
     private static readonly char[] BreakChars = ['\r', '\n'];
@@ -354,4 +358,28 @@ public static class ConsoleOutputParser
     // The video bar's done/total counters, e.g. "12/101".
     private static readonly Regex VidRowCountPattern = new(
         @"---+\s*(\d+)/(\d+)\s+\d{1,3}(?:\.\d+)?%", RegexOptions.Compiled);
+
+    // The same counters, anchored on the "Vid " label. <see cref="TryExtractSegmentCount"/>
+    // is deliberately label-agnostic (it serves any stream row), but the completion check
+    // must only trust the video bar: an idle "Sub Kbps --- 5/100" row would otherwise read
+    // as an incomplete download.
+    private static readonly Regex VidRowLabelCountPattern = new(
+        @"Vid\s[^\r\n]*?---+\s*(\d+)/(\d+)\s", RegexOptions.Compiled);
+
+    /// <summary>The video bar's done/total counters from a progress frame, or null.</summary>
+    public static (int Done, int Total)? TryExtractVideoSegmentCount(string line)
+    {
+        if (string.IsNullOrEmpty(line))
+            return null;
+
+        var match = VidRowLabelCountPattern.Match(StripAnsi(line));
+        if (!match.Success)
+            return null;
+
+        return int.TryParse(match.Groups[1].Value, out var done)
+            && int.TryParse(match.Groups[2].Value, out var total)
+            && done >= 0 && total > 0 && done <= total
+            ? (done, total)
+            : null;
+    }
 }

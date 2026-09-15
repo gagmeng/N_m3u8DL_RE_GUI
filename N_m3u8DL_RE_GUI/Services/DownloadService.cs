@@ -114,7 +114,8 @@ public class DownloadService : IDownloadService
                 return true;
 
             if (result.Outcome != ConsoleOutputParser.EngineOutcome.FatalError
-                && result.Outcome != ConsoleOutputParser.EngineOutcome.HttpBlocked)
+                && result.Outcome != ConsoleOutputParser.EngineOutcome.HttpBlocked
+                && !result.Incomplete)
                 break; // cancelled or crashed — retrying will not help
         }
 
@@ -122,7 +123,8 @@ public class DownloadService : IDownloadService
         // engine's TLS fingerprint was blocked, not that segments are gone.
         if (options.AutoCfFallback
             && (result.Outcome == ConsoleOutputParser.EngineOutcome.HttpBlocked
-                || result.Outcome == ConsoleOutputParser.EngineOutcome.FatalError))
+                || result.Outcome == ConsoleOutputParser.EngineOutcome.FatalError
+                || result.Incomplete))
         {
             logCallback?.Invoke("Engine failed with HTTP-blocking symptoms — trying the Cloudflare bypass path (browser TLS fingerprint) once.");
             var cfOk = await TryCfFallbackAsync(options, logCallback, progressCallback, cancellationToken);
@@ -145,10 +147,14 @@ public class DownloadService : IDownloadService
     }
 
     /// <summary>
-    /// One engine (or fallback) run's outcome: overall success plus the most severe
-    /// failure signature observed in its output.
+    /// One engine (or fallback) run's outcome: overall success, the most severe failure
+    /// signature observed in its output, and whether the video bar was left short of its
+    /// segment total (which needs a retry even though the engine logged no failure).
     /// </summary>
-    private readonly record struct EngineRunResult(bool Success, ConsoleOutputParser.EngineOutcome Outcome);
+    private readonly record struct EngineRunResult(
+        bool Success,
+        ConsoleOutputParser.EngineOutcome Outcome,
+        bool Incomplete = false);
 
     /// <summary>
     /// Runs m3u8_cf_bypass.py once through the existing batch wrapper path. Kept
@@ -451,17 +457,27 @@ public class DownloadService : IDownloadService
                 }
             }
 
-            var success = process.ExitCode == 0 && forwarder.Outcome == ConsoleOutputParser.EngineOutcome.None;
+            // N_m3u8DL-RE (Beta) exits 0 even when the download failed, so the exit code
+            // alone is not evidence: a failure signature OR an incomplete video bar both
+            // mean the run did not succeed.
+            var outcome = forwarder.Outcome;
+            var incomplete = forwarder.VideoSegmentsIncomplete;
+            var success = process.ExitCode == 0
+                && outcome == ConsoleOutputParser.EngineOutcome.None
+                && !incomplete;
+
             logCallback?.Invoke(success
                 ? "Process finished successfully!"
-                : process.ExitCode == 0
-                    ? $"Process failed (engine reported {forwarder.Outcome}) but exited with code 0."
-                    : $"Process exited with code: {process.ExitCode}");
+                : process.ExitCode != 0
+                    ? $"Process exited with code: {process.ExitCode}"
+                    : outcome != ConsoleOutputParser.EngineOutcome.None
+                        ? $"Process failed (engine reported {outcome}) but exited with code 0."
+                        : "Process failed: the engine exited with code 0 but left segments undownloaded.");
 
             if (success)
                 progressCallback?.Report(100);
 
-            return new EngineRunResult(success, forwarder.Outcome);
+            return new EngineRunResult(success, outcome, incomplete);
         }
         catch (OperationCanceledException)
         {
@@ -565,6 +581,7 @@ public class DownloadService : IDownloadService
         private int? _lastShownDone;
         private string? _lastProgressSignature;
         private ConsoleOutputParser.EngineOutcome _outcome = ConsoleOutputParser.EngineOutcome.None;
+        private (int Done, int Total)? _lastVideoCount;
 
         // Repetitive-warning suppression: ffmpeg merge phases can emit thousands of
         // identical "Packet corrupt" lines in seconds, drowning the rest of the log.
@@ -593,6 +610,16 @@ public class DownloadService : IDownloadService
         public ConsoleOutputParser.EngineOutcome Outcome
         {
             get { lock (_lock) return _outcome; }
+        }
+
+        /// <summary>
+        /// True when the run left the video bar short of its segment total, i.e. the
+        /// engine exited 0 without ever logging a failure signature. Guards against a
+        /// silently truncated download. False when no video bar was ever seen.
+        /// </summary>
+        public bool VideoSegmentsIncomplete
+        {
+            get { lock (_lock) return _lastVideoCount is { } c && c.Done < c.Total; }
         }
 
         /// <summary>Accepts decoded characters from a pump chunk. Thread-safe.</summary>
@@ -742,6 +769,17 @@ public class DownloadService : IDownloadService
         /// </summary>
         private void HandleProgressFrameLocked(string frame, List<string> toEmit)
         {
+            // Failure signatures can be glued onto the tail of a progress frame when the
+            // engine omits the newline between them. Classify here too, otherwise the
+            // whole run is written off as successful.
+            var frameOutcome = ConsoleOutputParser.ClassifyOutcome(ConsoleOutputParser.Clean(frame));
+            if (frameOutcome > _outcome)
+                _outcome = frameOutcome;
+
+            var videoCount = ConsoleOutputParser.TryExtractVideoSegmentCount(frame);
+            if (videoCount.HasValue)
+                _lastVideoCount = videoCount;
+
             var percent = ConsoleOutputParser.TryExtractPercent(frame);
             if (percent.HasValue && percent.Value != _lastReportedPercent)
             {
@@ -813,6 +851,15 @@ public class DownloadService : IDownloadService
                 lines = new List<string>();
                 if (_pending.Length > 0)
                 {
+                    // The tail fragment can still carry the terminal failure record.
+                    var tailOutcome = ConsoleOutputParser.ClassifyOutcome(ConsoleOutputParser.Clean(_pending.ToString()));
+                    if (tailOutcome > _outcome)
+                        _outcome = tailOutcome;
+
+                    var tailCount = ConsoleOutputParser.TryExtractVideoSegmentCount(_pending.ToString());
+                    if (tailCount.HasValue)
+                        _lastVideoCount = tailCount;
+
                     foreach (var row in ConsoleOutputParser.SplitProgressFrame(_pending.ToString()))
                     {
                         var cleaned = ConsoleOutputParser.RepairFieldSpacing(ConsoleOutputParser.Clean(row));

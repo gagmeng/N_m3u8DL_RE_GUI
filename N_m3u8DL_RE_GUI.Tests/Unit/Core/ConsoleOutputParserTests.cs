@@ -105,6 +105,59 @@ public class ConsoleOutputParserTests
         Assert.Equal("08:35:59.550 INFO : Done", segments[0].Text);
     }
 
+    [Fact]
+    public void SplitOutput_ShouldCutTheSpacelessErrorStampOffAProgressFrame()
+    {
+        // Real shape from a failed run: the terminal record is glued onto the tail of a
+        // progress frame and the engine writes "ERROR:" with no space before the colon.
+        // When the stamp pattern demanded whitespace there, this record stayed inside the
+        // progress segment, never reached ClassifyOutcome, and the run was reported as
+        // successful — skipping retry, CF fallback and the missing-segment merge.
+        var text = "Vid Kbps --- 1433/1434 99.93% 947.94MB/948.60MB 0.00Bps 00:00:00 "
+                   + "22:13:55.280 ERROR: Failed";
+
+        var segments = ConsoleOutputParser.SplitOutput(text);
+
+        Assert.Collection(segments,
+            s => { Assert.Contains("1433/1434", s.Text); Assert.True(s.IsProgress); },
+            s =>
+            {
+                Assert.Equal("22:13:55.280 ERROR: Failed", s.Text);
+                Assert.False(s.IsProgress);
+                Assert.Equal(ConsoleOutputParser.EngineOutcome.FatalError,
+                    ConsoleOutputParser.ClassifyOutcome(s.Text));
+            });
+    }
+
+    [Fact]
+    public void ClassifyOutcome_ShouldStillSeeAFailureSignatureLeftOnAProgressFrame()
+    {
+        // Defense in depth: even if a frame is never split, the glued failure must be
+        // detectable from the frame text itself.
+        var frame = "Vid Kbps --- 1433/1434 99.93% 947.94MB/948.60MB 0.00Bps 00:00:00 22:13:55.280 ERROR: Failed";
+        Assert.Equal(ConsoleOutputParser.EngineOutcome.FatalError,
+            ConsoleOutputParser.ClassifyOutcome(ConsoleOutputParser.Clean(frame)));
+    }
+
+    [Theory]
+    [InlineData("Vid Kbps --- 1433/1434 99.93% 947.94MB/948.60MB 0.00Bps 00:00:00", 1433, 1434)]
+    [InlineData("Vid Kbps --- 12/101 11.88% 42.50MB/356.00MB 1.20MBps --:--:--", 12, 101)]
+    [InlineData("Sub Kbps --- 5/100 5.00% --:--:--", null, null)]   // not the video bar
+    [InlineData("08:35:59.550 INFO : Done", null, null)]
+    [InlineData("", null, null)]
+    public void TryExtractVideoSegmentCount_ShouldOnlyTrustTheVideoBar(string line, int? done, int? total)
+    {
+        var count = ConsoleOutputParser.TryExtractVideoSegmentCount(line);
+        if (done == null)
+            Assert.Null(count);
+        else
+        {
+            Assert.NotNull(count);
+            Assert.Equal(done.Value, count!.Value.Done);
+            Assert.Equal(total!.Value, count.Value.Total);
+        }
+    }
+
     [Theory]
     [InlineData("22:36:19.034 ERROR: Failed", ConsoleOutputParser.EngineOutcome.FatalError)]
     [InlineData("something ERROR : Failed tail", ConsoleOutputParser.EngineOutcome.FatalError)]
