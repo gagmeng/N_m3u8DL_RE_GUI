@@ -53,6 +53,149 @@ public static class ConsoleOutputParser
     /// <summary>Strips escapes and surrounding whitespace; empty when nothing remains.</summary>
     public static string Clean(string? rawLine) => StripAnsi(rawLine ?? string.Empty).Trim();
 
+    /// <summary>The video bar's done/total counters, e.g. (1257, 1268) — or null.</summary>
+    public static (int Done, int Total)? TryExtractSegmentCount(string line)
+    {
+        if (string.IsNullOrEmpty(line))
+            return null;
+
+        var stripped = StripAnsi(line);
+        var vidMatch = VidRowCountPattern.Match(stripped);
+        if (!vidMatch.Success)
+            return null;
+
+        return int.TryParse(vidMatch.Groups[1].Value, out var done)
+            && int.TryParse(vidMatch.Groups[2].Value, out var total)
+            && done >= 0 && total > 0 && done <= total
+            ? (done, total)
+            : null;
+    }
+
+    // A field is a timestamp (HH:MM:SS or --:--:--, tried first so "00:00:58"
+    // doesn't lex as a bare "00"), or a signed number with an optional unit suffix.
+    // Speed units come before size units so "4.27MBps" lexes whole.
+    private static readonly Regex FieldTokenPattern = new(
+        @"--:--:--|\d{2}:\d{2}:\d{2}"
+        + @"|-?\d+(?:\.\d+)?(?:Bps|KBps|MBps|GBps|B/s|KB/s|MB/s|GB/s|B|KB|MB|GB)?",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// Re-inserts the spaces the engine's cursor-move redraws lost when ANSI escapes
+    /// were stripped, e.g. "505.17MB/846.18MB4.51MBps00:00:58" becomes
+    /// "505.17MB/846.18MB 4.51MBps 00:00:58". Applied to progress rows only — plain
+    /// log records never carry glued fields.
+    /// </summary>
+    public static string RepairFieldSpacing(string cleanedRow)
+    {
+        if (string.IsNullOrEmpty(cleanedRow))
+            return cleanedRow;
+
+        var sb = new System.Text.StringBuilder(cleanedRow.Length + 8);
+        var lastConsumed = 0;
+        var first = true;
+
+        foreach (Match m in FieldTokenPattern.Matches(cleanedRow))
+        {
+            // Fill any text skipped between tokens unchanged.
+            sb.Append(cleanedRow, lastConsumed, m.Index - lastConsumed);
+
+            // Two tokens touching with no separator need a space between them.
+            if (!first && m.Index == lastConsumed && m.Index > 0
+                && char.IsLetterOrDigit(cleanedRow[m.Index - 1])
+                && (char.IsLetterOrDigit(m.Value[0]) || m.Value[0] == '-'))
+            {
+                sb.Append(' ');
+            }
+
+            sb.Append(m.Value);
+            lastConsumed = m.Index + m.Length;
+            first = false;
+        }
+
+        sb.Append(cleanedRow, lastConsumed, cleanedRow.Length - lastConsumed);
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Engine outcome classification for a finished run. N_m3u8DL-RE (Beta) exits with
+    /// code 0 even when the download failed, so the GUI must additionally inspect the
+    /// redirected output to learn the truth.
+    /// </summary>
+    public enum EngineOutcome
+    {
+        /// <summary>No failure signature seen in the output.</summary>
+        None = 0,
+        /// <summary>The engine logged "ERROR: Failed" (segment retries exhausted).</summary>
+        FatalError,
+        /// <summary>The engine logged one or more 404/403 HTTP status warnings.</summary>
+        HttpBlocked
+    }
+
+    // "22:36:19.034 ERROR: Failed" — the engine's terminal failure record.
+    private static readonly Regex FatalErrorPattern = new(
+        @"(?:^|\s)ERROR\s*:\s*Failed", RegexOptions.Compiled);
+
+    // "Response status code does not indicate success: 404 (Not Found)."
+    private static readonly Regex HttpBlockedPattern = new(
+        @"Response status code does not indicate success:\s*(40[34])\b", RegexOptions.Compiled);
+
+    // ffmpeg TS-demux noise emitted in thousands during the merge phase:
+    // "Packet corrupt (stream = 0, dts = 672556677)." and "corrupt input packet in stream 0".
+    private static readonly Regex RepetitiveRecordPattern = new(
+        @"(?:Packet corrupt \(stream = \d+, dts = \d+\)|corrupt input packet in stream \d+)", RegexOptions.Compiled);
+
+    // Record stamp ("23:29:54.024 WARN : ") and counter-ish numbers. Stripping both
+    // leaves a stable skeleton so burst members compare equal after the timestamp.
+    private static readonly Regex RecordStampPrefixPattern = new(
+        @"^\d{2}:\d{2}:\d{2}\.\d{3} [A-Z]+\s*:\s*", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Classifies one cleaned log record. Returns the most severe outcome the record
+    /// carries: FatalError beats HttpBlocked. Designed to be fed every record the
+    /// forwarder emits; callers fold results with Math.Max.
+    /// </summary>
+    public static EngineOutcome ClassifyOutcome(string cleanedRecord)
+    {
+        if (string.IsNullOrEmpty(cleanedRecord))
+            return EngineOutcome.None;
+
+        if (FatalErrorPattern.IsMatch(cleanedRecord))
+            return EngineOutcome.FatalError;
+
+        if (HttpBlockedPattern.IsMatch(cleanedRecord))
+            return EngineOutcome.HttpBlocked;
+
+        return EngineOutcome.None;
+    }
+
+    /// <summary>
+    /// True when the record is a burst-prone diagnostic (identical apart from a
+    /// timestamp/counter) that the GUI may collapse into one line plus a suppression
+    /// count. Only cosmetic: classification via <see cref="ClassifyOutcome"/> is never
+    /// affected, and failure signatures never match these patterns.
+    /// </summary>
+    public static bool IsRepetitiveRecord(string cleanedRecord)
+    {
+        return !string.IsNullOrEmpty(cleanedRecord) && RepetitiveRecordPattern.IsMatch(cleanedRecord);
+    }
+
+    /// <summary>
+    /// The burst-comparison key for a record: the stamp prefix and volatile numbers
+    /// ("dts = 672556677") are stripped so all members of a burst share one skeleton,
+    /// e.g. "[in#0/mpegts @ ...] Packet corrupt (stream = , dts = ).". Returns null
+    /// for records that are not burst-prone.
+    /// </summary>
+    public static string? RepetitionKey(string cleanedRecord)
+    {
+        if (string.IsNullOrEmpty(cleanedRecord) || !IsRepetitiveRecord(cleanedRecord))
+            return null;
+
+        var skeleton = RecordStampPrefixPattern.Replace(cleanedRecord, string.Empty);
+        return NumberPattern.Replace(skeleton, string.Empty);
+    }
+
+    private static readonly Regex NumberPattern = new(@"\d+", RegexOptions.Compiled);
+
     /// <summary>
     /// N_m3u8DL-RE sometimes omits the newline between consecutive log records when its
     /// output is redirected, gluing them into one line ("...Streaming22:46:39.213 INFO : ...").
@@ -207,4 +350,8 @@ public static class ConsoleOutputParser
     private static readonly Regex VidRowPattern = new(
         @"Vid\s[^\r\n]*?---+\s*\d+/\d+\s+(\d{1,3})(?:\.\d+)?%",
         RegexOptions.Compiled);
+
+    // The video bar's done/total counters, e.g. "12/101".
+    private static readonly Regex VidRowCountPattern = new(
+        @"---+\s*(\d+)/(\d+)\s+\d{1,3}(?:\.\d+)?%", RegexOptions.Compiled);
 }

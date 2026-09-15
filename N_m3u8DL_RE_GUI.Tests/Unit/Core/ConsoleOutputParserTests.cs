@@ -104,4 +104,112 @@ public class ConsoleOutputParserTests
         Assert.True(segments[0].IsComplete);
         Assert.Equal("08:35:59.550 INFO : Done", segments[0].Text);
     }
+
+    [Theory]
+    [InlineData("22:36:19.034 ERROR: Failed", ConsoleOutputParser.EngineOutcome.FatalError)]
+    [InlineData("something ERROR : Failed tail", ConsoleOutputParser.EngineOutcome.FatalError)]
+    [InlineData("22:29:53.044 WARN : Response status code does not indicate success: 404 (Not Found).", ConsoleOutputParser.EngineOutcome.HttpBlocked)]
+    [InlineData("22:29:53.044 WARN : Response status code does not indicate success: 403 (Forbidden).", ConsoleOutputParser.EngineOutcome.HttpBlocked)]
+    [InlineData("08:35:59.550 INFO : Done", ConsoleOutputParser.EngineOutcome.None)]
+    [InlineData("Vid Kbps --- 12/100 12%", ConsoleOutputParser.EngineOutcome.None)]
+    [InlineData("", ConsoleOutputParser.EngineOutcome.None)]
+    public void ClassifyOutcome_ShouldDetectEngineFailureSignatures(string record, ConsoleOutputParser.EngineOutcome expected)
+    {
+        Assert.Equal(expected, ConsoleOutputParser.ClassifyOutcome(record));
+    }
+
+    [Fact]
+    public void ClassifyOutcome_ShouldPreferFatalOverHttpBlocked()
+    {
+        var combined = "WARN : Response status code does not indicate success: 404 (Not Found). ERROR: Failed";
+        Assert.Equal(ConsoleOutputParser.EngineOutcome.FatalError, ConsoleOutputParser.ClassifyOutcome(combined));
+    }
+
+    [Theory]
+    [InlineData("23:11:29.287 WARN : Packet corrupt (stream = 0, dts = 672556677).", true)]
+    [InlineData("23:11:29.274 WARN : [in#0/mpegts @ 000001c39c022480] corrupt input packet in stream 0", true)]
+    [InlineData("22:29:53.044 WARN : Response status code does not indicate success: 404 (Not Found).", false)]
+    [InlineData("08:35:59.550 INFO : Done", false)]
+    [InlineData("", false)]
+    public void IsRepetitiveRecord_ShouldMatchOnlyBurstProneDiagnostics(string record, bool expected)
+    {
+        Assert.Equal(expected, ConsoleOutputParser.IsRepetitiveRecord(record));
+    }
+
+    [Fact]
+    public void IsRepetitiveRecord_ShouldNeverClassifyAsFailure()
+    {
+        // The corrupt-packet noise must stay cosmetic: it is a WARN, not a fatal failure.
+        Assert.Equal(ConsoleOutputParser.EngineOutcome.None,
+            ConsoleOutputParser.ClassifyOutcome("23:11:29.287 WARN : Packet corrupt (stream = 0, dts = 672556677)."));
+    }
+
+    [Fact]
+    public void RepetitionKey_ShouldCollapseBurstMembersWithDifferentTimestampsAndDts()
+    {
+        // Real records from a merge phase: only stamp and dts differ between members.
+        var a = ConsoleOutputParser.RepetitionKey(
+            "23:29:54.024 WARN : [in#0/mpegts @ 000001fdee300640] Packet corrupt (stream = 0, dts = 684448557).");
+        var b = ConsoleOutputParser.RepetitionKey(
+            "23:29:54.033 WARN : [in#0/mpegts @ 000001fdee300640] Packet corrupt (stream = 0, dts = 665457).");
+        var c = ConsoleOutputParser.RepetitionKey(
+            "23:29:54.034 WARN : [in#0/mpegts @ 000001fdee300280] corrupt input packet in stream 0");
+
+        Assert.NotNull(a);
+        Assert.Equal(a, b);           // same shape -> same burst
+        Assert.NotEqual(a, c);        // different shape -> different burst
+    }
+
+    [Fact]
+    public void RepetitionKey_ShouldReturnNullForNonRepetitiveRecords()
+    {
+        Assert.Null(ConsoleOutputParser.RepetitionKey("23:29:54.034 INFO : Done"));
+        Assert.Null(ConsoleOutputParser.RepetitionKey(
+            "22:29:53.044 WARN : Response status code does not indicate success: 404 (Not Found)."));
+        Assert.Null(ConsoleOutputParser.RepetitionKey(""));
+    }
+
+    [Theory]
+    [InlineData("Vid Kbps --- 1257/1268 99.13% 5.53MBps00:00:01", 1257)]
+    [InlineData("Vid Kbps --- 0/1268 0.00% -0.00Bps --:--:--", 0)]
+    [InlineData("Sub Kbps --- 5/100 5.00% --:--:--", 5)]
+    [InlineData("08:35:59.550 INFO : Done", null)]
+    [InlineData("", null)]
+    public void TryExtractSegmentCount_ShouldReadTheVideoBarCounters(string line, int? expectedDone)
+    {
+        var count = ConsoleOutputParser.TryExtractSegmentCount(line);
+        if (expectedDone == null)
+            Assert.Null(count);
+        else
+        {
+            Assert.NotNull(count);
+            Assert.Equal(expectedDone.Value, count!.Value.Done);
+            Assert.True(count.Value.Total > 0);
+        }
+    }
+
+    [Theory]
+    [InlineData(
+        "Vid Kbps ------------------------------ 764/1268 60.25% 505.17MB/846.18MB4.51MBps00:00:58",
+        "Vid Kbps ------------------------------ 764/1268 60.25% 505.17MB/846.18MB 4.51MBps 00:00:58")]
+    [InlineData(
+        "Vid Kbps --- 1/1213 0.08% -152.20KBps00:02:54",
+        "Vid Kbps --- 1/1213 0.08% -152.20KBps 00:02:54")]
+    [InlineData(
+        "Vid Kbps --- 12/101 11.88% 42.50MB/356.00MB1.20MBps--:--:--",
+        "Vid Kbps --- 12/101 11.88% 42.50MB/356.00MB 1.20MBps --:--:--")]
+    [InlineData(
+        "Vid Kbps --- 7/1213 0.58% 4.42MB/765.13MB4.27MBps00:08:37",
+        "Vid Kbps --- 7/1213 0.58% 4.42MB/765.13MB 4.27MBps 00:08:37")]
+    public void RepairFieldSpacing_ShouldSeparateGluedProgressFields(string glued, string expected)
+    {
+        Assert.Equal(expected, ConsoleOutputParser.RepairFieldSpacing(glued));
+    }
+
+    [Fact]
+    public void RepairFieldSpacing_ShouldLeaveAlreadySpacedRowsUnchanged()
+    {
+        var spaced = "Vid Kbps --- 12/101 11.88% 42.50MB/356.00MB 1.20MBps 00:08:37";
+        Assert.Equal(spaced, ConsoleOutputParser.RepairFieldSpacing(spaced));
+    }
 }

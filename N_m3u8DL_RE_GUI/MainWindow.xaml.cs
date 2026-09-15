@@ -17,7 +17,6 @@ using MessageBox = System.Windows.MessageBox;
 using Path = System.IO.Path;
 using TextBox = System.Windows.Controls.TextBox;
 using WpfComboBox = System.Windows.Controls.ComboBox;
-using Forms = System.Windows.Forms;
 using Media = System.Windows.Media;
 using MediaColor = System.Windows.Media.Color;
 using Anim = System.Windows.Media.Animation;
@@ -70,7 +69,6 @@ namespace N_m3u8DL_RE_GUI
         // Captured from the XAML so the batch flow can restore the real label (icon and
         // access key included) instead of hard-coding a second, drifting copy of it.
         private object? _downloadButtonLabel;
-        private static readonly Media.SolidColorBrush ErrorBorderBrush = CreateFrozenBrush(MediaColor.FromRgb(231, 76, 60));
         // DefaultBorderBrush is gone: the resting border now comes from TextBoxStyle, which
         // is the only place it should ever have been defined.
 
@@ -122,6 +120,8 @@ namespace N_m3u8DL_RE_GUI
             InitializeComponent();
             _downloadButtonLabel = Button_GO.Content;
 
+            ApplyAssemblyVersionBranding();
+
             CommandBindings.Add(new CommandBinding(
                 StartDownloadRoutedCommand,
                 (_, _) => Button_GO_Click(Button_GO, new RoutedEventArgs()),
@@ -140,6 +140,28 @@ namespace N_m3u8DL_RE_GUI
             _batchScriptService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<Services.IBatchScriptService>(serviceProvider);
             _dragDropService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<Services.IDragDropService>(serviceProvider);
             _downloadService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<Services.IDownloadService>(serviceProvider);
+
+            // Apply the persisted theme before the first frame so the window never
+            // flashes the default palette. Load is a pure read with no side effects;
+            // Window_Loaded's Restore re-selects the combo item and the idempotent
+            // guard in ThemeManager makes the second Apply a no-op.
+            Services.ThemeManager.Apply(
+                Services.MainWindowConfigMapper.ResolveTheme(_configService.Load("config.txt").Get("Theme")));
+        }
+
+        /// <summary>
+        /// Derives the window title from the assembly version, so a release only
+        /// updates the version in the csproj/AssemblyInfo and the title follows
+        /// automatically — no hardcoded copy to drift. The in-page header stays
+        /// version-free: the title bar already shows it.
+        /// </summary>
+        private void ApplyAssemblyVersionBranding()
+        {
+            var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            if (version == null)
+                return;
+
+            Title = $"N_m3u8DL-RE GUI v{version.Major}.{version.Minor}.{version.Build}";
         }
 
         private void Button_SelectDir_Click(object sender, RoutedEventArgs e)
@@ -400,6 +422,11 @@ namespace N_m3u8DL_RE_GUI
                 // it from the XAML in the IA pass.
                 NoAnsiColor = true,
                 DisableUpdateCheck = CheckBox_DisableUpdateCheck?.IsChecked == true,
+
+                // Failure recovery
+                AutoRetryCount = CheckBox_AutoRetry?.IsChecked == true ? 3 : 0,
+                AutoCfFallback = CheckBox_AutoCfFallback?.IsChecked == true,
+                AllowMissingSegments = CheckBox_AllowMissingSegments?.IsChecked == true,
             };
         }
 
@@ -468,6 +495,16 @@ namespace N_m3u8DL_RE_GUI
         private void Combo_HLSMethod_SelectionChanged(object sender, SelectionChangedEventArgs e) => GetParameter();
         private void Combo_LogLevel_SelectionChanged(object sender, SelectionChangedEventArgs e) => GetParameter();
         private void Combo_UILanguage_SelectionChanged(object sender, SelectionChangedEventArgs e) => GetParameter();
+        // Theme is a GUI-only preference: it must NOT reach GetParameter/the command
+        // line, so this handler applies the palette directly instead.
+        private void Combo_Theme_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.ComboBox combo
+                && combo.SelectedItem is System.Windows.Controls.ComboBoxItem item)
+            {
+                Services.ThemeManager.Apply(item.Content?.ToString());
+            }
+        }
         private void Combo_CFImpersonate_SelectionChanged(object sender, SelectionChangedEventArgs e) => GetParameter();
 
         private void FlashTextBox(TextBox textBox)
@@ -480,7 +517,8 @@ namespace N_m3u8DL_RE_GUI
 
             var toGreen = new Anim.ColorAnimation
             {
-                To = (MediaColor)Media.ColorConverter.ConvertFromString("#2ecc71"),
+                // Theme-aware success colour (green in both palettes).
+                To = SuccessFlashColor,
                 Duration = TimeSpan.FromMilliseconds(300)
             };
 
@@ -501,6 +539,17 @@ namespace N_m3u8DL_RE_GUI
             Anim.Storyboard.SetTargetProperty(backToOriginal, new PropertyPath(Media.SolidColorBrush.ColorProperty));
 
             sb.Begin();
+        }
+
+        /// <summary>The themed flash colour for pasted URLs (SuccessBrush's colour).</summary>
+        private static Media.Color SuccessFlashColor
+        {
+            get
+            {
+                if (Application.Current?.TryFindResource("SuccessBrush") is Media.SolidColorBrush brush)
+                    return brush.Color;
+                return (MediaColor)Media.ColorConverter.ConvertFromString("#2ecc71");
+            }
         }
 
 
@@ -669,6 +718,11 @@ namespace N_m3u8DL_RE_GUI
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            // Terminate any running engine (N_m3u8DL-RE and its ffmpeg/python children)
+            // before the window goes away, so closing the GUI never leaves an orphaned
+            // download writing to disk with nobody watching it.
+            _downloadService.StopDownload();
+
             var state = Services.MainWindowConfigMapper.Capture(this);
             _configService.Save("config.txt", state);
         }
@@ -730,6 +784,20 @@ namespace N_m3u8DL_RE_GUI
                 {
                     _ = CheckGuiUpdateAsync(isManual: false);
                 }
+
+                if (CheckBox_AutoCheckNReUpdate?.IsChecked == true)
+                {
+                    _ = CheckEngineToolAsync(
+                        () => new N_m3u8DL_RE_GUI.Core.Services.EngineUpdateCheckService().CheckNReAsync(),
+                        TextBlock_NReStatus, Button_CheckNRe);
+                }
+
+                if (CheckBox_AutoCheckFfmpegUpdate?.IsChecked == true)
+                {
+                    _ = CheckEngineToolAsync(
+                        () => new N_m3u8DL_RE_GUI.Core.Services.EngineUpdateCheckService().CheckFfmpegAsync(),
+                        TextBlock_FfmpegStatus, Button_CheckFfmpeg);
+                }
             }
         }
 
@@ -767,7 +835,6 @@ namespace N_m3u8DL_RE_GUI
                 Top = Math.Max(work.Top, work.Bottom - Height);
         }
 
-        private readonly System.Text.StringBuilder _logBuffer = new();
         private string? _lastOutputDirectory;
 
         private void Button_PasteCurl_Click(object sender, RoutedEventArgs e)
@@ -855,23 +922,27 @@ namespace N_m3u8DL_RE_GUI
         private void SetStatus(string text, bool isError = false)
         {
             TextBlock_Status.Text = text;
-            TextBlock_Status.Foreground = isError ? ErrorBorderBrush : DefaultStatusBrush;
+            // Resolved per call so the status colours follow the active theme.
+            TextBlock_Status.Foreground = isError
+                ? FindThemeBrush("ErrorBrush", DefaultStatusBrush)
+                : FindThemeBrush("TextSecondaryBrush", DefaultStatusBrush);
         }
 
         private static readonly Media.SolidColorBrush DefaultStatusBrush =
             CreateFrozenBrush(MediaColor.FromRgb(0x88, 0x88, 0xA8));
 
+        /// <summary>Looks a themed brush up in app resources, falling back when missing.</summary>
+        private static Media.Brush FindThemeBrush(string key, Media.Brush fallback) =>
+            Application.Current?.TryFindResource(key) as Media.Brush ?? fallback;
+
         private void AppendLog(string message)
         {
-            _logBuffer.AppendLine(message);
-            TextBox_Log.Text = _logBuffer.ToString();
-            TextBox_Log.ScrollToEnd();
+            TextBox_Log.AppendLine(message);
         }
 
         private void ResetRunState()
         {
-            _logBuffer.Clear();
-            TextBox_Log.Text = string.Empty;
+            TextBox_Log.ClearLog();
             ProgressBar_Download.Value = 0;
             Button_OpenFolder.Visibility = Visibility.Collapsed;
         }
@@ -1588,6 +1659,56 @@ namespace N_m3u8DL_RE_GUI
         {
             await CheckGuiUpdateAsync(isManual: true);
         }
+
+        private async void Button_CheckNRe_Click(object sender, RoutedEventArgs e)
+        {
+            await CheckEngineToolAsync(
+                () => new N_m3u8DL_RE_GUI.Core.Services.EngineUpdateCheckService().CheckNReAsync(),
+                TextBlock_NReStatus, Button_CheckNRe);
+        }
+
+        private async void Button_CheckFfmpeg_Click(object sender, RoutedEventArgs e)
+        {
+            await CheckEngineToolAsync(
+                () => new N_m3u8DL_RE_GUI.Core.Services.EngineUpdateCheckService().CheckFfmpegAsync(),
+                TextBlock_FfmpegStatus, Button_CheckFfmpeg);
+        }
+
+        private async System.Threading.Tasks.Task CheckEngineToolAsync(
+            Func<System.Threading.Tasks.Task<Core.Services.EngineToolStatus>> check,
+            System.Windows.Controls.TextBlock? status,
+            System.Windows.Controls.Button? button)
+        {
+            if (button != null) button.IsEnabled = false;
+            if (status != null) status.Text = "Checking…";
+            try
+            {
+                var result = await check();
+                if (status != null)
+                {
+                    status.Text = result.HasUpdate
+                        ? $"{result.LocalVersion} → {result.LatestVersion} available!"
+                        : result.Detectable
+                            ? $"✓ {result.LocalVersion}"
+                            : "exe not found";
+                }
+
+                // Opening the release page is the "apply update" step: replacing a
+                // running binary in place is unsafe, so the GUI never overwrites exes.
+                if (result.HasUpdate)
+                    StartShellTarget(result.ReleaseUrl);
+            }
+            finally
+            {
+                if (button != null) button.IsEnabled = true;
+            }
+        }
+
+        private void Hyperlink_Nilaoda_Click(object sender, RoutedEventArgs e) =>
+            StartShellTarget("https://github.com/nilaoda/N_m3u8DL-RE");
+
+        private void Hyperlink_Ffmpeg_Click(object sender, RoutedEventArgs e) =>
+            StartShellTarget("https://github.com/FFmpeg/FFmpeg");
 
         private void Button_UpdateBadge_Click(object sender, RoutedEventArgs e)
         {
