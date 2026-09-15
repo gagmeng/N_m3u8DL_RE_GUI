@@ -56,20 +56,31 @@
 
 <!-- GETTING STARTED -->
 
+## What's New in 2.1.7 (2026-09-15)
+
+This release is a full interface overhaul: the GUI now runs on an iOS-flavoured design system instead of the previous ad-hoc styling.
+
+- **Redesigned interface** - grouped inset cards, filled text fields with a visible focus ring, capsule buttons, switches for mode-style options, overlay scrollbars and a 4px progress groove, all driven by 34 theme tokens (up from 19).
+- **Every emoji replaced by a hand-drawn SVG icon** - 23 single-line glyphs on a 24x24 grid (1.5px stroke), shared by the desktop app and the browser extension popup. No icon font and no image assets.
+- **Themed window title bar** - the native title bar now follows the active theme (dark caption in dark mode, light in light mode) on startup and after every runtime theme switch, for both the main window and the stream picker.
+- **WCAG AA text contrast on every surface** - secondary labels, selected rows and hover states were measured and corrected, and the test suite now asserts those pairs so they cannot silently regress.
+- **Layout polish** - one spacing ladder instead of seven ad-hoc steps, right-aligned label columns, uniform control heights, a dedicated empty-state card, and an empty URL no longer paints an error outline on first paint.
+- **704 automated tests pass**, 0 failed (1 skipped: live-network integration).
+
 ## Getting Started (Installation)
 
 We have intentionally kept the installation process as simple as possible. No installers, no complicated setups.
 
 ### 1. Download
 
-Download the latest release (`N_m3u8DL_RE_GUI_v2.1.6.zip`) from our [GitHub Releases](https://github.com/naravid19/N_m3u8DL_RE_GUI/releases) page.
+Download the latest release (`N_m3u8DL_RE_GUI_v2.1.7.zip`) from our [GitHub Releases](https://github.com/naravid19/N_m3u8DL_RE_GUI/releases) page.
 
 ### 2. Extract
 
 Extract the `.zip` file anywhere on your computer. Inside the folder, you will find exactly **4 core files** that power everything:
 
 ```text
-N_m3u8DL_RE_GUI_v2.1.6/
+N_m3u8DL_RE_GUI_v2.1.7/
 ├── N_m3u8DL_RE_GUI.exe    <-- The main application (Double click this!)
 ├── N_m3u8DL-RE.exe        <-- The core download engine
 ├── ffmpeg.exe             <-- The video/audio muxing engine
