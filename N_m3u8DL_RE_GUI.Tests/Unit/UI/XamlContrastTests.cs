@@ -96,7 +96,11 @@ public class XamlContrastTests
                      "AccentBrush", "AccentTextBrush", "AccentHoverBrush", "AccentPressedBrush",
                      "TextPrimaryBrush", "TextSecondaryBrush", "CfAmberBrush",
                      "CommandBarBrush", "CommandTextBrush", "DropLabelBrush",
-                     "SuccessBrush", "ErrorBrush", "CfWarningBgBrush", "DimBrush", "DisabledSurfaceBrush"
+                     "SuccessBrush", "ErrorBrush", "CfWarningBgBrush", "DimBrush", "DisabledSurfaceBrush",
+                     // The two tokens the contrast pass added: without them here, an edit
+                     // that drops either one would only surface as a KeyNotFoundException
+                     // inside the pair loops instead of a named failure.
+                     "TintOnFillBrush", "FillTertiaryHoverBrush"
                  })
         {
             Assert.True(palette.ContainsKey(key), $"{theme} palette is missing {key}");
@@ -125,6 +129,16 @@ public class XamlContrastTests
                  {
                      ("TextSecondaryBrush", "CardBrush", "field labels"),
                      ("TextSecondaryBrush", "SurfaceBrush", "unselected tab text"),
+                     // Secondary text also lands on the filled surfaces below. The pairs were
+                     // unchecked when the iOS token set landed, and dark measured 4.07:1 on
+                     // RaisedSurface / 4.40:1 on a filled field / 4.18:1 on a tertiary pill.
+                     ("TextSecondaryBrush", "InputFillBrush", "input placeholder text"),
+                     ("TextSecondaryBrush", "FillTertiaryBrush", "log toggle rest, secondary button rest"),
+                     ("TextSecondaryBrush", "RaisedSurfaceBrush", "combo popup secondary text"),
+                     // Accent used as TEXT on a filled row rather than as the focus ring.
+                     ("TintOnFillBrush", "NavSelectedBrush", "selected sidebar / list / log toggle"),
+                     // The hover step of a tertiary fill, which used to be BorderBrushCustom.
+                     ("TextPrimaryBrush", "FillTertiaryHoverBrush", "secondary button hover"),
                      ("TextPrimaryBrush", "CardBrush", "input text and checkbox labels"),
                      ("AccentTextBrush", "CardBrush", "GroupBox headers, selected tab text"),
                      ("AccentTextBrush", "SurfaceBrush", "main title"),
@@ -137,6 +151,30 @@ public class XamlContrastTests
         {
             var ratio = Contrast(palette[fg], palette[bg]);
             Assert.True(ratio >= 4.5, $"{theme}: {fg} on {bg} ({usage}) is {ratio:F2}:1, needs 4.5:1");
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ThemePair))]
+    public void TertiaryLabel_ShouldStayAboveTheDisabledStateFloor(string theme)
+    {
+        // TertiaryLabelBrush is a disabled-only token (disabled ComboBox text and its
+        // fill). WCAG 2.1 exempts inactive controls from the 4.5:1 body-text rule, so the
+        // bar here is the 3:1 component floor, not 4.5:1 — a disabled label that reads as
+        // clearly as live text defeats its own purpose. It must still be legible though:
+        // dark was 2.47:1 on Card and light 2.27:1 on a filled field, which is where the
+        // "grey text over the fill" complaint came from.
+        var palette = Palette(theme);
+        foreach (var (fg, bg, usage) in new[]
+                 {
+                     ("TertiaryLabelBrush", "CardBrush", "disabled combo over a card"),
+                     ("TertiaryLabelBrush", "RaisedSurfaceBrush", "disabled combo in a popup"),
+                     ("TertiaryLabelBrush", "InputFillBrush", "disabled field over a filled input"),
+                     ("TertiaryLabelBrush", "BgBrush", "disabled combo over a sidebar")
+                 })
+        {
+            var ratio = Contrast(palette[fg], palette[bg]);
+            Assert.True(ratio >= 3.0, $"{theme}: {fg} on {bg} ({usage}) is {ratio:F2}:1, needs the 3.0:1 disabled floor");
         }
     }
 

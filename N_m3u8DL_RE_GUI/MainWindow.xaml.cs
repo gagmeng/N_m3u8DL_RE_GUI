@@ -61,6 +61,10 @@ namespace N_m3u8DL_RE_GUI
         private readonly Services.IDownloadService _downloadService;
         private bool _suspendParameterRefresh;
         private bool _isCheckingUpdate;
+        // Release page behind the update badge. It used to ride on Button_UpdateBadge.Tag,
+        // but Tag now carries the badge's icon geometry (see Icons.xaml + the pill
+        // template), and a Geometry there would break both the icon and this link.
+        private string? _guiUpdateReleaseUrl;
         // One token source for whatever long-running operation is currently cancellable.
         // Each operation creates its own, publishes it here for Button_Stop, and clears
         // the field only if it is still the owner. Sharing a single field across the
@@ -133,6 +137,9 @@ namespace N_m3u8DL_RE_GUI
                 (_, e) => e.CanExecute = Button_Stop.Visibility == Visibility.Visible));
 
             TextBox_URL.Focus();
+            // The URL field is empty at this point, so the card starts visible; a config
+            // restore that fills the field later goes through TextChanged anyway.
+            SyncEmptyState();
             System.Windows.DataObject.AddPastingHandler(TextBox_URL, TextBox_URL_Pasting);
             var serviceProvider = ViewModels.ViewModelLocator.ServiceProvider;
             _utilityService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<Services.IUtilityService>(serviceProvider);
@@ -147,6 +154,10 @@ namespace N_m3u8DL_RE_GUI
             // guard in ThemeManager makes the second Apply a no-op.
             Services.ThemeManager.Apply(
                 Services.MainWindowConfigMapper.ResolveTheme(_configService.Load("config.txt").Get("Theme")));
+            // The native title bar lives outside the WPF resource system, so it needs
+            // its own hook: this applies the theme once the HWND exists and again
+            // whenever Apply runs (i.e. on every runtime theme switch).
+            Services.ThemeManager.TrackWindow(this);
         }
 
         /// <summary>
@@ -195,10 +206,19 @@ namespace N_m3u8DL_RE_GUI
             textBox.Tag = isValid ? null : "invalid";
         }
 
+        /// <summary>
+        /// An empty URL box is "not filled in yet", not "wrong". Treating it as invalid
+        /// painted the 1px danger hairline on the primary field from first paint, which
+        /// every reviewer read as a different control type. The hairline is now reserved
+        /// for input that is present and actually malformed.
+        /// </summary>
+        private static bool IsEmptyOrLikelyValidInput(string? input) =>
+            string.IsNullOrWhiteSpace(input) || InputValidation.IsLikelyValidInput(input);
+
         private void RefreshValidationState(object? sender = null)
         {
             if (sender == null || sender == TextBox_URL)
-                ApplyValidationState(TextBox_URL, TextBox_URL == null || InputValidation.IsLikelyValidInput(TextBox_URL.Text));
+                ApplyValidationState(TextBox_URL, TextBox_URL == null || IsEmptyOrLikelyValidInput(TextBox_URL.Text));
             if (sender == null || sender == TextBox_Proxy)
                 ApplyValidationState(TextBox_Proxy, TextBox_Proxy == null || InputValidation.IsValidProxy(TextBox_Proxy.Text));
             if (sender == null || sender == TextBox_EXE)
@@ -444,6 +464,26 @@ namespace N_m3u8DL_RE_GUI
         {
             RefreshValidationState(sender);
             GetParameter();
+            // Single sync point for the empty state: every TextBox funnels through here,
+            // so the card can never drift out of step with the URL field.
+            if (sender == null || sender == TextBox_URL)
+                SyncEmptyState();
+        }
+
+        /// <summary>
+        /// Shows the getting-started card while the URL field is empty. The card is a
+        /// placeholder for the one thing the window needs first, so it disappears as soon
+        /// as there is an input to configure the rest of the page for. Nothing else about
+        /// the field's state is derived here — validation still travels as Tag.
+        /// </summary>
+        private void SyncEmptyState()
+        {
+            if (Border_EmptyState == null || TextBox_URL == null)
+                return;
+
+            Border_EmptyState.Visibility = string.IsNullOrWhiteSpace(TextBox_URL.Text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         private void CheckBoxChanged(object sender, RoutedEventArgs e)
@@ -1689,7 +1729,7 @@ namespace N_m3u8DL_RE_GUI
                     status.Text = result.HasUpdate
                         ? $"{result.LocalVersion} → {result.LatestVersion} available!"
                         : result.Detectable
-                            ? $"✓ {result.LocalVersion}"
+                            ? $"{result.LocalVersion}"
                             : "exe not found";
                 }
 
@@ -1712,7 +1752,7 @@ namespace N_m3u8DL_RE_GUI
 
         private void Button_UpdateBadge_Click(object sender, RoutedEventArgs e)
         {
-            string? url = Button_UpdateBadge.Tag as string;
+            string? url = _guiUpdateReleaseUrl;
             if (string.IsNullOrEmpty(url))
                 url = "https://github.com/naravid19/N_m3u8DL_RE_GUI/releases/latest";
             StartShellTarget(url);
@@ -1729,13 +1769,13 @@ namespace N_m3u8DL_RE_GUI
                 if (TextBlock_UpdateStatus != null) TextBlock_UpdateStatus.Text = "Checking...";
 
                 var service = new N_m3u8DL_RE_GUI.Core.Services.GitHubUpdateCheckService();
-                var currentVer = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version ?? new Version(2, 1, 4);
+                var currentVer = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version ?? new Version(2, 1, 7);
                 var result = await service.CheckForUpdateAsync("naravid19", "N_m3u8DL_RE_GUI", currentVer);
 
                 if (result.HasUpdate)
                 {
-                    Button_UpdateBadge.Content = $"🎉 {result.LatestVersion} Available!";
-                    Button_UpdateBadge.Tag = result.ReleaseUrl;
+                    Button_UpdateBadge.Content = $"发现新版本 {result.LatestVersion}";
+                    _guiUpdateReleaseUrl = result.ReleaseUrl;
                     Button_UpdateBadge.Visibility = Visibility.Visible;
                     if (TextBlock_UpdateStatus != null)
                         TextBlock_UpdateStatus.Text = $"{result.LatestVersion} available!";
@@ -1746,7 +1786,7 @@ namespace N_m3u8DL_RE_GUI
                     {
                         if (isManual)
                         {
-                            TextBlock_UpdateStatus.Text = "✓ Latest version";
+                            TextBlock_UpdateStatus.Text = "Latest version";
                             var timer = new System.Windows.Threading.DispatcherTimer
                             {
                                 Interval = TimeSpan.FromSeconds(3)
