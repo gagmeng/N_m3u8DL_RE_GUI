@@ -10,8 +10,23 @@
         <!-- Brush definitions live in Themes/Theme.*.xaml (App-level merge), so this
              window follows the active theme with no extra code. -->
 
+        <!-- Same visual as MainWindow's AccessibleFocusVisual, redeclared here on purpose:
+             that one lives in MainWindow's own Window.Resources, which this window's
+             resource lookup never walks, so a StaticResource to it would throw at load. -->
+        <Style x:Key="AccessibleFocusVisual">
+            <Setter Property="Control.Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Rectangle Margin="-2" Stroke="{DynamicResource TintBrush}"
+                                   StrokeThickness="2" StrokeDashArray="1 1"
+                                   SnapsToDevicePixels="True"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource AccentFillBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="16,6"/>
@@ -20,10 +35,10 @@
             <Setter Property="FontSize" Value="13"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
+                    <Setter Property="Background" Value="{DynamicResource AccentFillHoverBrush}"/>
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}"/>
+                    <Setter Property="Background" Value="{DynamicResource AccentFillPressedBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -40,6 +55,46 @@
                     <Setter Property="Background" Value="{DynamicResource BorderBrushCustom}"/>
                 </Trigger>
             </Style.Triggers>
+        </Style>
+
+        <!-- List rows. Implicit because ListBox.Items is the only place it applies: the
+             stock container paints a system-blue rectangle with white text, which
+             ignores the palette entirely (and white on NavSelected would be unreadable).
+             Selection is carried the same way the sidebar carries it: the row fill
+             changes, the text stays TextPrimaryBrush. -->
+        <Style TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource AccessibleFocusVisual}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Row"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource FillTertiaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource NavSelectedBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 

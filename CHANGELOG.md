@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.7] - 2026-09-15
+
+### Added
+
+- **Vector Icon Set (`Themes/Icons.xaml`)**: 23 single-line icons drawn on a 24x24 grid, replacing every emoji in the UI. Each glyph is an open polyline meant to be **stroked**, never filled — the shared `IconPath` style carries that contract. The dictionary is merged once at App level and is never swapped by `ThemeManager` (whose marker is the `Themes/Theme.` prefix), so icons stay available across dark/light switches while their colour still comes from `DynamicResource` references into the active theme.
+- **15 New Design Tokens**: both theme dictionaries grew from 19 to 34 tokens (`AccentFillBrush` / `AccentFillHoverBrush` / `AccentFillPressedBrush`, `TintBrush`, `SeparatorBrush`, `SwitchOnBrush`, `FillTertiaryBrush`, `NavSelectedBrush`, `ScrollThumbBrush`, `RaisedSurfaceBrush`, `TertiaryLabelBrush`, `DangerFillBrush`, `InputFillBrush`, `InputFillHoverBrush`, `FocusRingBrush`), so control templates no longer hard-code colours and re-colour on a theme swap.
+- **Empty-State Card**: the download list now shows a dedicated card when nothing is queued, instead of a blank region.
+
+### Changed
+
+- **Control Templates Rewritten**: group cards, checkboxes, switches, text inputs, scrollbars, progress bars, sidebar navigation and the log toggle all received explicit templates built on the new tokens — consistent corner radii, hover/pressed/focus states, and a visible focus ring for keyboard navigation.
+- **Filled Input Style**: text inputs switched from outlined to filled surfaces (`InputFillBrush` with an `InputFillHoverBrush` hover state), matching the rest of the card-based layout.
+- **Layout Polish (P0–P2)**: spacing collapsed onto a single ladder instead of seven ad-hoc steps — row gaps inside a list are now `0,8,0,0` and horizontal gaps `0,0,8,0` (was 2/4/6/7/10/12 and 5/6/7/9/10), container insets `Padding="12"` → `14`, taking `MainWindow.xaml` from 37 distinct `Margin` values down to 19. Labels in a fixed 90px label column are right-aligned, so the gap to their field is a constant 8px instead of drifting with label length; the `Request & Proxy` card's 80px column joined the 90px system and `Performance & Limits` became a 2x2 on that column (90px, right-aligned values) rather than four inline labels beside 45px pills. Input controls now share one height: `ComboBox` `MinHeight` 26 → 41, which is what a filled field actually renders at, so a drop-down and the field beside it line up. The top input area is one grid again — `Save Dir`/`Browse` reuse the URL row's columns, `Save Name` sits behind a 24px gutter as its own group, and both rows end on the same right edge. The empty-state card's heading (14/SemiBold/`TextPrimaryBrush`) now outranks the steps it introduces (13), the Cloudflare scope warning moved from `CornerRadius="3"` to `8` (the last pre-redesign radius in the file), and an empty URL field no longer paints the invalid hairline on first paint — that stroke is reserved for input that is present and malformed.
+- **Extension Popup Visual Alignment**: `extension/popup/{popup.css,popup.html,popup.js}` re-skinned onto the same token vocabulary (`--canvas`, `--surface`, `--surface-raised`, `--ink`, `--ink-2`, `--accent*`, `--tint`, `--separator`, `--fill-tertiary`, `--danger`, `--success`), so the browser extension and the desktop GUI read as one product.
+
+### Fixed
+
+- **Themed Title Bar**: the native system title bar now follows the active theme (dark caption in dark mode, light caption in light mode) on startup and after every runtime theme switch; applies to the main window and the stream picker (`Services/TitleBarTheme.cs`).
+- **Dark/Light Text Contrast**: secondary and selected-state text now clears WCAG AA on every grouped surface — `TextSecondaryBrush` lifted to `#9E9EB8` in dark, `TintOnFillBrush` (`#66B2FF`) added for selected sidebar/list/log-toggle rows, and `FillTertiaryHoverBrush` added so the secondary-button hover no longer washes the label out. Contrast assertions for those tokens were added to `XamlContrastTests`.
+- 704 automated tests pass, 0 failed (1 skipped: live-network integration).
+
+---
+
 ## [2.1.6] - 2026-09-15
 
 ### Added
@@ -416,6 +439,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Highlights                                                |
 | ------- | ---------- | --------------------------------------------------------- |
+| 2.1.7   | 2026-09-15 | 23-icon 24-grid vector set (emoji removed), 15 new design tokens, control-template rewrite, filled inputs, empty-state card, extension popup alignment, 702 tests |
 | 2.1.6   | 2026-09-15 | Dark/Light themes, severity-coloured log, per-tool auto-update, log noise fix, -11 MB (WinForms removed), 702 tests |
 | 2.1.5   | 2026-08-20 | Resume download, SSOT versioning, honest update checks, Abyss downloader, Browser Extension v1.3.0, 969 total tests |
 | 2.1.4   | 2026-08-08 | Windows DPAPI secret protection, lifecycle hardening, 164 tests |
