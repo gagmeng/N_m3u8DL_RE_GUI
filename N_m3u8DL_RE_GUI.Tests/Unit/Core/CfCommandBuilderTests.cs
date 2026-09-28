@@ -79,6 +79,8 @@ public class CfCommandBuilderTests
         Assert.StartsWith("@echo off", bat);
         Assert.Contains("chcp 65001 >nul", bat);
         Assert.Contains("set PYTHONUTF8=1", bat);
+        Assert.Contains("set \"CF_EXIT_CODE=%ERRORLEVEL%\"", bat);
+        Assert.Contains("exit /b %CF_EXIT_CODE%", bat);
     }
 
     [Theory]

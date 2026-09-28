@@ -57,7 +57,9 @@ public static class CfCommandBuilder
         sb.AppendLine("chcp 65001 >nul");
         sb.AppendLine("set PYTHONUTF8=1");
         sb.AppendLine(command.Replace("%", "%%"));
+        sb.AppendLine("set \"CF_EXIT_CODE=%ERRORLEVEL%\"");
         sb.AppendLine("echo.");
+        sb.AppendLine("exit /b %CF_EXIT_CODE%");
         return sb.ToString();
     }
 

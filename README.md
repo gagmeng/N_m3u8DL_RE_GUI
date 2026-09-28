@@ -56,7 +56,7 @@
 
 <!-- GETTING STARTED -->
 
-## What's New in 2.1.8 (2026-09-15)
+## What's New in 2.2.0 (2026-09-28)
 
 This release fixes a failure-detection bug that could leave a failed download looking successful — and silently skipped every recovery path.
 
@@ -74,14 +74,14 @@ We have intentionally kept the installation process as simple as possible. No in
 
 ### 1. Download
 
-Download the latest release (`N_m3u8DL_RE_GUI_v2.1.8.zip`) from our [GitHub Releases](https://github.com/gagmeng/N_m3u8DL_RE_GUI/releases) page.
+Download the latest release (`N_m3u8DL_RE_GUI_v2.2.0.zip`) from our [GitHub Releases](https://github.com/gagmeng/N_m3u8DL_RE_GUI/releases) page.
 
 ### 2. Extract
 
 Extract the `.zip` file anywhere on your computer. Inside the folder, you will find 4 core files plus the optional companion browser extension:
 
 ```text
-N_m3u8DL_RE_GUI_v2.1.8/
+N_m3u8DL_RE_GUI_v2.2.0/
 ├── N_m3u8DL_RE_GUI.exe    <-- The main application (Double click this!)
 ├── N_m3u8DL-RE.exe        <-- The core download engine
 ├── ffmpeg.exe             <-- The video/audio muxing engine

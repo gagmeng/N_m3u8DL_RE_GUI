@@ -175,7 +175,7 @@ internal static class MainWindowConfigMapper
         RestoreCheckBox(window.CheckBox_BypassCF, config.Get("BypassCloudflare"));
         RestoreCheckBox(window.CheckBox_AutoRetry, string.IsNullOrEmpty(config.Get("AutoRetry")) ? "1" : config.Get("AutoRetry"));
         RestoreCheckBox(window.CheckBox_AutoCfFallback, string.IsNullOrEmpty(config.Get("AutoCfFallback")) ? "1" : config.Get("AutoCfFallback"));
-        RestoreCheckBox(window.CheckBox_AllowMissingSegments, config.Get("AllowMissingSegments"));
+        RestoreCheckBox(window.CheckBox_AllowMissingSegments, string.IsNullOrEmpty(config.Get("AllowMissingSegments")) ? "1" : config.Get("AllowMissingSegments"));
         RestoreComboByContent(window.Combo_Theme, ResolveTheme(config.Get("Theme")));
     }
 

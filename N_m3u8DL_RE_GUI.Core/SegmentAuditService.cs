@@ -48,27 +48,50 @@ public static class SegmentAuditService
         var baseDir = string.IsNullOrWhiteSpace(saveDir)
             ? Environment.CurrentDirectory
             : saveDir;
-        var nreTmp = Path.Combine(baseDir, ".nre-tmp");
-        if (!Directory.Exists(nreTmp))
-            return null;
-
         string? newest = null;
         var newestWrite = DateTime.MinValue;
-        try
+
+        void Consider(string dir)
         {
-            foreach (var dir in Directory.EnumerateDirectories(nreTmp))
+            try
             {
-                DateTime write;
-                try { write = Directory.GetLastWriteTimeUtc(dir); }
-                catch { continue; }
+                if (!File.Exists(Path.Combine(dir, "raw.m3u8")))
+                    return;
+                var write = Directory.GetLastWriteTimeUtc(dir);
                 if (write >= startedUtc.AddSeconds(-5) && write > newestWrite)
                 {
                     newestWrite = write;
                     newest = dir;
                 }
             }
+            catch { }
         }
-        catch { }
+
+        void ScanRoot(string root)
+        {
+            try
+            {
+                foreach (var dir in Directory.EnumerateDirectories(root))
+                {
+                    Consider(dir);
+                    if (string.Equals(Path.GetFileName(dir), ".nre-tmp", StringComparison.OrdinalIgnoreCase))
+                    {
+                        foreach (var nested in Directory.EnumerateDirectories(dir))
+                            Consider(nested);
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // Depending on engine version, the task directory may be rooted at the
+        // save directory, the process working directory, or the GUI directory.
+        ScanRoot(baseDir);
+        if (!string.Equals(Environment.CurrentDirectory, baseDir, StringComparison.OrdinalIgnoreCase))
+            ScanRoot(Environment.CurrentDirectory);
+        if (!string.Equals(AppContext.BaseDirectory, baseDir, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(AppContext.BaseDirectory, Environment.CurrentDirectory, StringComparison.OrdinalIgnoreCase))
+            ScanRoot(AppContext.BaseDirectory);
 
         return newest;
     }

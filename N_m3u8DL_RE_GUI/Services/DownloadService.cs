@@ -77,6 +77,21 @@ public class DownloadService : IDownloadService
         // Every failed attempt leaves its segments in the temp dir, so each retry
         // only fetches what is still missing.
         var maxEngineAttempts = 1 + Math.Max(0, options.AutoRetryCount);
+        if ((maxEngineAttempts > 1 || options.AllowMissingSegments) && options.DelAfterDone)
+        {
+            // Recovery needs the engine cache after a failed run. N_m3u8DL-RE may
+            // otherwise remove the task directory before the tolerant merge can audit it.
+            options.DelAfterDone = false;
+            logCallback?.Invoke("Temporary segment cleanup disabled for failure recovery.");
+        }
+        if (maxEngineAttempts > 1 && string.IsNullOrWhiteSpace(options.SaveName))
+        {
+            // N_m3u8DL-RE otherwise generates a timestamped name on every launch.
+            // Pin it once so retries target the same temp directory and can reuse
+            // already downloaded segments instead of starting from zero.
+            options.SaveName = CreateRetrySaveName(options.Input!, DateTime.Now);
+            logCallback?.Invoke($"Retry cache pinned to save name: {options.SaveName}");
+        }
         EngineRunResult result = new(false, ConsoleOutputParser.EngineOutcome.None);
 
         for (var attempt = 1; attempt <= maxEngineAttempts; attempt++)
@@ -146,6 +161,22 @@ public class DownloadService : IDownloadService
         return false;
     }
 
+    internal static string CreateRetrySaveName(string input, DateTime startedLocal)
+    {
+        var baseName = "download";
+        if (Uri.TryCreate(input, UriKind.Absolute, out var uri))
+        {
+            var candidate = Path.GetFileNameWithoutExtension(uri.AbsolutePath.TrimEnd((char)47));
+            if (!string.IsNullOrWhiteSpace(candidate))
+                baseName = candidate;
+        }
+
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+            baseName = baseName.Replace(invalid, (char)95);
+
+        return $"{baseName}_{startedLocal:yyyy-MM-dd_HH-mm-ss}";
+    }
+
     /// <summary>
     /// One engine (or fallback) run's outcome: overall success, the most severe failure
     /// signature observed in its output, and whether the video bar was left short of its
@@ -192,16 +223,45 @@ public class DownloadService : IDownloadService
             OutputName: saveName,
             WorkDir: workDir,
             SegDir: Path.Combine(AppContext.BaseDirectory, "cf_segments"),
-            Referer: CfCommandBuilder.DeriveReferer(null, options.Input ?? string.Empty),
-            Cookie: string.Empty,
-            Impersonate: "chrome",
-            KeepSegments: true);
+            Referer: CfCommandBuilder.DeriveReferer(options.CfReferer, options.Input ?? string.Empty),
+            Cookie: options.CfCookie?.Trim() ?? string.Empty,
+            Impersonate: string.IsNullOrWhiteSpace(options.CfImpersonate) ? "chrome" : options.CfImpersonate,
+            KeepSegments: options.CfKeepSegments);
 
-        var command = CfCommandBuilder.BuildCommand(cfOptions);
-        var bat = Path.Combine(Path.GetTempPath(), "cf_dl_" + DateTime.Now.ToString("yyyyMMddHHmmss") + ".bat");
-        System.IO.File.WriteAllText(bat, CfCommandBuilder.BuildBatchScript(command), new UTF8Encoding(false));
-
-        return await StartProcessAsync(bat, string.Empty, logCallback, progressCallback, cancellationToken);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = python,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
+        };
+        startInfo.Environment["PYTHONUTF8"] = "1";
+        startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
+        startInfo.ArgumentList.Add(scriptPath);
+        startInfo.ArgumentList.Add(cfOptions.Url);
+        startInfo.ArgumentList.Add("--referer");
+        startInfo.ArgumentList.Add(cfOptions.Referer);
+        startInfo.ArgumentList.Add("-o");
+        startInfo.ArgumentList.Add(cfOptions.OutputName);
+        startInfo.ArgumentList.Add("--work-dir");
+        startInfo.ArgumentList.Add(cfOptions.WorkDir);
+        startInfo.ArgumentList.Add("--seg-dir");
+        startInfo.ArgumentList.Add(cfOptions.SegDir);
+        startInfo.ArgumentList.Add("--impersonate");
+        startInfo.ArgumentList.Add(cfOptions.Impersonate);
+        if (!string.IsNullOrEmpty(cfOptions.Cookie))
+        {
+            startInfo.ArgumentList.Add("--cookie");
+            startInfo.ArgumentList.Add(cfOptions.Cookie);
+        }
+        if (cfOptions.KeepSegments)
+            startInfo.ArgumentList.Add("--keep-segs");
+        var result = await StartTrackedProcessAsync(
+            startInfo, logCallback, progressCallback, redirect: true, cancellationToken);
+        return result.Success;
     }
 
     private static string? FindScriptPath(string scriptName)
@@ -430,8 +490,12 @@ public class DownloadService : IDownloadService
                 // N_m3u8DL-RE's redirected progress frames contain no newline at all, so
                 // BeginOutputReadLine never fires until the process exits. Pump the raw
                 // byte streams manually and classify each chunk via the parser.
-                var pumpOut = PumpStreamAsync(process.StandardOutput.BaseStream, forwarder, cts.Token);
-                var pumpErr = PumpStreamAsync(process.StandardError.BaseStream, forwarder, cts.Token);
+                var pumpOut = PumpStreamAsync(
+                    process.StandardOutput.BaseStream, forwarder,
+                    startInfo.StandardOutputEncoding ?? TextEncodingDetector.AnsiFallback, cts.Token);
+                var pumpErr = PumpStreamAsync(
+                    process.StandardError.BaseStream, forwarder,
+                    startInfo.StandardErrorEncoding ?? TextEncodingDetector.AnsiFallback, cts.Token);
                 try
                 {
                     await process.WaitForExitAsync(cts.Token);
@@ -527,12 +591,12 @@ public class DownloadService : IDownloadService
     /// LF and N_m3u8DL-RE progress frames contain none. Encoding: the engine writes
     /// localized text in the system ANSI code page when output is not a console.
     /// </summary>
-    private static async Task PumpStreamAsync(Stream stream, OutputForwarder forwarder, CancellationToken token)
+    private static async Task PumpStreamAsync(
+        Stream stream, OutputForwarder forwarder, Encoding encoding, CancellationToken token)
     {
         var buffer = new byte[8192];
         var decodeBuffer = new char[8192];
-        var encoding = TextEncodingDetector.AnsiFallback;
-        // Stateful decoder: multibyte ANSI characters (GBK) can straddle chunk boundaries.
+        // Stateful decoder: multibyte characters can straddle chunk boundaries.
         var decoder = encoding.GetDecoder();
 
         while (true)

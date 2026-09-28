@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.2.0] - 2026-09-28
+
+### Fixed
+
+- **Reliable Segment Reuse Across Retries**: one stable task name is pinned for the whole retry sequence, so existing segments are reused instead of creating a new timestamped cache.
+- **Partial Merge Finds Real Engine Caches**: recovery searches the save directory, working directory, GUI directory and legacy `.nre-tmp` layout for `raw.m3u8`.
+- **Recovery Cache Preservation**: retry and Allow Missing Segments disable premature engine cleanup so the final ffmpeg merge can use downloaded segments.
+- **Cloudflare Fallback Configuration**: Referer, Cookie, browser fingerprint and keep-segment settings are forwarded to automatic fallback.
+- **Cloudflare UTF-8 Output**: Python is launched directly and the output pump respects per-process encoding, eliminating mojibake.
+- **Cloudflare Failure Exit Codes**: helper failures are no longer reported as successful completion.
+- **Immediate Input Theme Refresh**: the Input URL field now recolours immediately on Dark/Light switches.
+
+### Changed
+
+- **Allow Missing Segments Enabled by Default** for new configurations while preserving an explicit disabled choice.
+- Version advanced to **2.2.0** across GUI, Core and publishing defaults.
+
+---
+
 ## [2.1.8] - 2026-09-15
 
 ### Fixed

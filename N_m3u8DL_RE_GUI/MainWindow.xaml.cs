@@ -447,6 +447,12 @@ namespace N_m3u8DL_RE_GUI
                 AutoRetryCount = CheckBox_AutoRetry?.IsChecked == true ? 3 : 0,
                 AutoCfFallback = CheckBox_AutoCfFallback?.IsChecked == true,
                 AllowMissingSegments = CheckBox_AllowMissingSegments?.IsChecked == true,
+                CfReferer = TextBox_CFReferer?.Text?.Trim(),
+                CfCookie = TextBox_CFCookie?.Text?.Trim(),
+                CfImpersonate = (Combo_CFImpersonate?.SelectedItem is ComboBoxItem cfItem
+                    && cfItem.Tag is string cfTag && !string.IsNullOrWhiteSpace(cfTag))
+                    ? cfTag : "chrome",
+                CfKeepSegments = CheckBox_CFKeepSegs?.IsChecked == true,
             };
         }
 
@@ -516,6 +522,7 @@ namespace N_m3u8DL_RE_GUI
             }
 
             var bypassCf = CheckBox_BypassCF?.IsChecked == true;
+            var cfSettingsEnabled = bypassCf || CheckBox_AutoCfFallback?.IsChecked == true;
             if (Border_CfScopeWarning != null)
                 Border_CfScopeWarning.Visibility = bypassCf ? Visibility.Visible : Visibility.Collapsed;
 
@@ -524,7 +531,7 @@ namespace N_m3u8DL_RE_GUI
                      { Combo_CFImpersonate, TextBox_CFReferer, TextBox_CFCookie, CheckBox_CFKeepSegs })
             {
                 if (control != null)
-                    control.IsEnabled = bypassCf;
+                    control.IsEnabled = cfSettingsEnabled;
             }
         }
 
@@ -543,6 +550,9 @@ namespace N_m3u8DL_RE_GUI
                 && combo.SelectedItem is System.Windows.Controls.ComboBoxItem item)
             {
                 Services.ThemeManager.Apply(item.Content?.ToString());
+                // FlashTextBox temporarily installs a local Background brush. Clear it
+                // on a palette switch so the DynamicResource updates immediately.
+                TextBox_URL?.ClearValue(System.Windows.Controls.Control.BackgroundProperty);
             }
         }
         private void Combo_CFImpersonate_SelectionChanged(object sender, SelectionChangedEventArgs e) => GetParameter();
@@ -578,6 +588,7 @@ namespace N_m3u8DL_RE_GUI
             Anim.Storyboard.SetTarget(backToOriginal, animatedBrush);
             Anim.Storyboard.SetTargetProperty(backToOriginal, new PropertyPath(Media.SolidColorBrush.ColorProperty));
 
+            sb.Completed += (_, _) => textBox.ClearValue(System.Windows.Controls.Control.BackgroundProperty);
             sb.Begin();
         }
 

@@ -10,6 +10,17 @@ namespace N_m3u8DL_RE_GUI.Tests.Unit.Services;
 public class DownloadServiceTests
 {
     [Fact]
+    public void CreateRetrySaveName_ShouldBeStableAndUseUrlFileName()
+    {
+        var started = new System.DateTime(2026, 9, 28, 11, 50, 28);
+
+        var name = DownloadService.CreateRetrySaveName(
+            "https://example.test/path/index.txt?t=token", started);
+
+        Assert.Equal("index_2026-09-28_11-50-28", name);
+    }
+
+    [Fact]
     public void IsDownloading_Initially_ShouldBeFalse()
     {
         var service = new DownloadService();

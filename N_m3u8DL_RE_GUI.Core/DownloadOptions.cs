@@ -51,6 +51,10 @@ public class DownloadOptions
     /// attempt. Requires Python 3 + curl_cffi.
     /// </summary>
     public bool AutoCfFallback { get; set; }
+    public string? CfReferer { get; set; }
+    public string? CfCookie { get; set; }
+    public string CfImpersonate { get; set; } = "chrome";
+    public bool CfKeepSegments { get; set; } = true;
 
     /// <summary>
     /// When a download ultimately fails, merge whatever segments exist in the temp

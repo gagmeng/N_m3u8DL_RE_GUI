@@ -1587,7 +1587,7 @@
 
                                     <CheckBox Grid.Row="0" Grid.Column="0" x:Name="CheckBox_AutoRetry" AutomationProperties.Name="Retry Failed Downloads Automatically" Style="{StaticResource CheckBoxStyle}" Content="Auto Retry on Failure" IsChecked="True" Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"/>
                                     <CheckBox Grid.Row="0" Grid.Column="1" x:Name="CheckBox_AutoCfFallback" AutomationProperties.Name="Fall Back To Cloudflare Bypass On 404 403" Style="{StaticResource CheckBoxStyle}" Content="CF Fallback on 404/403" IsChecked="True" Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"/>
-                                    <CheckBox Grid.Row="0" Grid.Column="2" x:Name="CheckBox_AllowMissingSegments" AutomationProperties.Name="Merge Partial Video When Segments Missing" Style="{StaticResource CheckBoxStyle}" Content="Allow Missing Segments" Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"/>
+                                    <CheckBox Grid.Row="0" Grid.Column="2" x:Name="CheckBox_AllowMissingSegments" AutomationProperties.Name="Merge Partial Video When Segments Missing" Style="{StaticResource CheckBoxStyle}" Content="Allow Missing Segments" IsChecked="True" Checked="CheckBoxChanged" Unchecked="CheckBoxChanged"/>
 
                                     <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Text="Failure recovery: retries reuse existing segments; CF fallback uses a browser TLS fingerprint; the merge option keeps a video with possible gaps."
                                                Style="{StaticResource LabelStyle}" TextWrapping="Wrap" Margin="0,8,0,0" FontSize="11"/>
