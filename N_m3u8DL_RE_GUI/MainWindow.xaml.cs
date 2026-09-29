@@ -1411,6 +1411,9 @@ namespace N_m3u8DL_RE_GUI
                 Impersonate: (Combo_CFImpersonate?.SelectedItem is ComboBoxItem cfi && cfi.Tag is string tag && !string.IsNullOrEmpty(tag))
                     ? tag
                     : "chrome",
+                ThreadCount: int.TryParse(TextBox_Max.Text, out var cfThreadCount)
+                    ? cfThreadCount
+                    : Environment.ProcessorCount,
                 KeepSegments: CheckBox_CFKeepSegs?.IsChecked == true);
         }
 

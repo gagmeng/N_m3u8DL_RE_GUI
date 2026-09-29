@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.0] - 2026-09-29
+
+### Added
+
+- **Concurrent Cloudflare Segment Downloads**: the fallback helper now honors the GUI thread count (clamped to 1–64), downloads segments concurrently, writes atomically through `.part` files and preserves playlist order for merging.
+
+### Fixed
+
+- **Immediate 403/404 Fallback**: the first parsed HTTP-block response cancels the remaining N_m3u8DL-RE retries and immediately enters the existing browser-TLS fallback path.
+- **Surrit Referer Derivation**: Surrit URLs without an explicit Referer now use the verified `https://missav123.com/` source-site Referer instead of the blocked CDN origin.
+- **Long-Running Surrit Throughput**: segment requests use fresh browser-fingerprinted connections and a shorter stalled-request timeout, preventing the severe slowdown caused by reusing throttled long-lived sessions.
+
+### Changed
+
+- **Bundled Download Engine Updated**: `N_m3u8DL-RE.exe` was replaced with the newer supplied build.
+- Version advanced to **2.3.0** across GUI, Core and release documentation.
+
+### Validation
+
+- Targeted Cloudflare and download-service tests pass (29/29).
+- A live 2,182-segment Surrit download completed and merged into a 2.20 GiB MP4.
+
+---
+
 ## [2.2.0] - 2026-09-28
 
 ### Fixed

@@ -124,9 +124,17 @@ public class DownloadService : IDownloadService
                 StandardErrorEncoding = TextEncodingDetector.AnsiFallback
             };
 
-            result = await StartTrackedProcessWithOutcomeAsync(startInfo, logCallback, progressCallback, cancellationToken);
+            result = await StartTrackedProcessWithOutcomeAsync(
+                startInfo, logCallback, progressCallback, cancellationToken,
+                stopOnHttpBlocked: options.AutoCfFallback);
             if (result.Success)
                 return true;
+
+            // A browser-TLS fallback is already available, so do not spend the
+            // remaining engine attempts repeating a request that the CDN blocked.
+            if (options.AutoCfFallback
+                && result.Outcome == ConsoleOutputParser.EngineOutcome.HttpBlocked)
+                break;
 
             if (result.Outcome != ConsoleOutputParser.EngineOutcome.FatalError
                 && result.Outcome != ConsoleOutputParser.EngineOutcome.HttpBlocked
@@ -226,6 +234,7 @@ public class DownloadService : IDownloadService
             Referer: CfCommandBuilder.DeriveReferer(options.CfReferer, options.Input ?? string.Empty),
             Cookie: options.CfCookie?.Trim() ?? string.Empty,
             Impersonate: string.IsNullOrWhiteSpace(options.CfImpersonate) ? "chrome" : options.CfImpersonate,
+            ThreadCount: options.ThreadCount,
             KeepSegments: options.CfKeepSegments);
 
         var startInfo = new ProcessStartInfo
@@ -252,6 +261,8 @@ public class DownloadService : IDownloadService
         startInfo.ArgumentList.Add(cfOptions.SegDir);
         startInfo.ArgumentList.Add("--impersonate");
         startInfo.ArgumentList.Add(cfOptions.Impersonate);
+        startInfo.ArgumentList.Add("--thread-count");
+        startInfo.ArgumentList.Add(Math.Clamp(cfOptions.ThreadCount, 1, 64).ToString());
         if (!string.IsNullOrEmpty(cfOptions.Cookie))
         {
             startInfo.ArgumentList.Add("--cookie");
@@ -455,10 +466,12 @@ public class DownloadService : IDownloadService
         Action<string>? logCallback,
         IProgress<int>? progressCallback,
         bool redirect,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool stopOnHttpBlocked = false)
     {
         Process? process = null;
         CancellationTokenSource? cts = null;
+        var httpBlockedStopRequested = 0;
 
         lock (_lockObject)
         {
@@ -477,7 +490,12 @@ public class DownloadService : IDownloadService
 
         try
         {
-            var forwarder = new OutputForwarder(logCallback, progressCallback);
+            var forwarder = new OutputForwarder(logCallback, progressCallback, () =>
+            {
+                if (stopOnHttpBlocked
+                    && Interlocked.Exchange(ref httpBlockedStopRequested, 1) == 0)
+                    cts!.Cancel();
+            });
 
             if (!process.Start())
             {
@@ -503,6 +521,12 @@ public class DownloadService : IDownloadService
                 }
                 catch (OperationCanceledException)
                 {
+                    if (Volatile.Read(ref httpBlockedStopRequested) != 0)
+                    {
+                        logCallback?.Invoke("HTTP 403/404 detected — stopping engine retries to start Cloudflare fallback.");
+                        return new EngineRunResult(false, ConsoleOutputParser.EngineOutcome.HttpBlocked);
+                    }
+
                     logCallback?.Invoke("Process execution was cancelled.");
                     return new EngineRunResult(false, ConsoleOutputParser.EngineOutcome.None);
                 }
@@ -580,9 +604,11 @@ public class DownloadService : IDownloadService
         ProcessStartInfo startInfo,
         Action<string>? logCallback,
         IProgress<int>? progressCallback,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool stopOnHttpBlocked)
     {
-        return StartTrackedProcessAsync(startInfo, logCallback, progressCallback, redirect: true, cancellationToken);
+        return StartTrackedProcessAsync(
+            startInfo, logCallback, progressCallback, redirect: true, cancellationToken, stopOnHttpBlocked);
     }
 
     /// <summary>
@@ -638,6 +664,7 @@ public class DownloadService : IDownloadService
 
         private readonly Action<string>? _logCallback;
         private readonly IProgress<int>? _progressCallback;
+        private readonly Action? _httpBlockedCallback;
         private readonly object _lock = new();
         private readonly StringBuilder _pending = new();
         private DateTime _lastProgressLog = DateTime.MinValue;
@@ -645,6 +672,7 @@ public class DownloadService : IDownloadService
         private int? _lastShownDone;
         private string? _lastProgressSignature;
         private ConsoleOutputParser.EngineOutcome _outcome = ConsoleOutputParser.EngineOutcome.None;
+        private bool _httpBlockedNotified;
         private (int Done, int Total)? _lastVideoCount;
 
         // Repetitive-warning suppression: ffmpeg merge phases can emit thousands of
@@ -661,10 +689,14 @@ public class DownloadService : IDownloadService
         private readonly SuppressionSlot[] _suppressionSlots = new SuppressionSlot[2];
         private DateTime _burstLastEmit = DateTime.MinValue;
 
-        public OutputForwarder(Action<string>? logCallback, IProgress<int>? progressCallback)
+        public OutputForwarder(
+            Action<string>? logCallback,
+            IProgress<int>? progressCallback,
+            Action? httpBlockedCallback = null)
         {
             _logCallback = logCallback;
             _progressCallback = progressCallback;
+            _httpBlockedCallback = httpBlockedCallback;
         }
 
         /// <summary>
@@ -731,6 +763,12 @@ public class DownloadService : IDownloadService
                     var outcome = ConsoleOutputParser.ClassifyOutcome(entry);
                     if (outcome > _outcome)
                         _outcome = outcome;
+                    if (outcome == ConsoleOutputParser.EngineOutcome.HttpBlocked
+                        && !_httpBlockedNotified)
+                    {
+                        _httpBlockedNotified = true;
+                        _httpBlockedCallback?.Invoke();
+                    }
 
                     var percent = ConsoleOutputParser.TryExtractPercent(entry);
                     if (percent.HasValue && percent.Value != _lastReportedPercent)

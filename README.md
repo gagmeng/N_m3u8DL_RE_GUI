@@ -56,17 +56,15 @@
 
 <!-- GETTING STARTED -->
 
-## What's New in 2.2.0 (2026-09-28)
+## What's New in 2.3.0 (2026-09-29)
 
-This release fixes a failure-detection bug that could leave a failed download looking successful — and silently skipped every recovery path.
+This release makes Cloudflare-protected Surrit downloads start sooner and sustain much higher throughput.
 
-- **Silent failures no longer pass as success** - N_m3u8DL-RE writes its terminal record as `ERROR: Failed`, with no space before the colon (unlike `WARN : ...`). The GUI's record splitter required that space, so the failure line stayed glued to the end of a progress row, was never classified, and — because the engine exits with code 0 even on failure — the run was reported as "Process finished successfully!". Retries, the Cloudflare fallback and the **Allow Missing Segments** merge were all bypassed. The splitter now accepts both forms, and progress frames are classified too, so a glued signature is caught either way.
-- **Truncated downloads are now detected** - a run that exits 0 while the video bar is still short of its segment total is treated as a failure, even when the engine logged nothing. The check reads the `Vid ` bar specifically, so an idle `Sub` row cannot false-positive.
-- **Recovery pipeline restored** - auto-retry, CF-bypass fallback and partial-segment merge now run as configured, including after a retry that leaves segments missing.
-- **Publish output fixed (-38 MB)** - the bundled `N_m3u8DL-RE.exe` / `ffmpeg.exe` are no longer swallowed by the single-file bundler, so they are reliably present in the release folder; the GUI executable is back to its true ~63 MB (it had been inflated to ~101 MB by a stray `ffmpeg.exe` in the bundle).
-- **711 automated tests pass**, 0 failed (1 skipped: live-network integration).
-
-> Also visible in this release: the failure record now renders **red** in the log instead of the progress-row colour.
+- **Immediate HTTP-block handoff** - the first parsed HTTP 403/404 now stops N_m3u8DL-RE's remaining retries and immediately starts the configured browser-TLS fallback.
+- **Working Surrit defaults** - when no explicit Cloudflare Referer is supplied, Surrit URLs use the verified `https://missav123.com/` source-site Referer instead of the blocked CDN origin.
+- **Concurrent Cloudflare downloads** - the Python helper now uses the GUI thread count (1–64), downloads segments in parallel, writes through atomic `.part` files and still merges in playlist order.
+- **Sustained CDN throughput** - each Surrit segment uses a fresh fingerprinted request, avoiding the severe throttling observed when long-lived connections were reused. A full 2.20 GiB / 2,182-segment download completed successfully during validation.
+- **Updated download engine** - the bundled `N_m3u8DL-RE.exe` has been replaced with the newer supplied build.
 
 ## Getting Started (Installation)
 
@@ -74,14 +72,14 @@ We have intentionally kept the installation process as simple as possible. No in
 
 ### 1. Download
 
-Download the latest release (`N_m3u8DL_RE_GUI_v2.2.0.zip`) from our [GitHub Releases](https://github.com/gagmeng/N_m3u8DL_RE_GUI/releases) page.
+Download the latest release (`N_m3u8DL_RE_GUI_v2.3.0.zip`) from our [GitHub Releases](https://github.com/gagmeng/N_m3u8DL_RE_GUI/releases) page.
 
 ### 2. Extract
 
 Extract the `.zip` file anywhere on your computer. Inside the folder, you will find 4 core files plus the optional companion browser extension:
 
 ```text
-N_m3u8DL_RE_GUI_v2.2.0/
+N_m3u8DL_RE_GUI_v2.3.0/
 ├── N_m3u8DL_RE_GUI.exe    <-- The main application (Double click this!)
 ├── N_m3u8DL-RE.exe        <-- The core download engine
 ├── ffmpeg.exe             <-- The video/audio muxing engine

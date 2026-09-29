@@ -6,6 +6,7 @@ import subprocess
 import time
 import datetime
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urljoin, urlparse
 
 # Enable ANSI escape sequences on Windows CMD
@@ -84,6 +85,8 @@ def parse_args():
                    help="Final mp4 save directory (GUI main Save Directory)")
     p.add_argument("--seg-dir", default=None,
                    help="Segment temp directory (default: cf_segments next to this script)")
+    p.add_argument("--thread-count", type=int, default=12,
+                   help="Concurrent segment downloads (default: 12, maximum: 64)")
     p.add_argument("--keep-segs", action="store_true",
                    help="Keep segment directory after successful merge; default is to auto-delete")
     return p.parse_args()
@@ -284,6 +287,7 @@ def probe_media_info(seg_path, ffmpeg_cmd="ffmpeg"):
 
 def main():
     a = parse_args()
+    thread_count = max(1, min(a.thread_count, 64))
     out_dir = os.path.abspath(a.work_dir)
     os.makedirs(out_dir, exist_ok=True)
 
@@ -317,6 +321,7 @@ def main():
     Logger.info(f"CF Cookie Provided         = {'Yes' if a.cookie else 'No'}")
     Logger.info(f"Segment Temp Dir           = {seg_dir}")
     Logger.info(f"Final Output Dir           = {out_dir}")
+    Logger.info(f"Concurrent Downloads       = {thread_count}")
     Logger.info(f"Post-Merge Cleanup         = {'Keep (keep-segs)' if a.keep_segs else 'Auto-Delete'}")
     print(f"{Colors.DIM}{'=' * 75}{Colors.RESET}\n")
 
@@ -376,41 +381,72 @@ def main():
     Logger.info(f"Save Name: {out_name}")
     Logger.info("Start downloading...")
 
-    ts = []
     max_retries = 5
-    for i, u in enumerate(segs):
-        d = os.path.join(seg_dir, f"{i:05d}.ts")
-        download_success = False
+
+    def download_segment(index, url):
+        destination = os.path.join(seg_dir, f"{index:05d}.ts")
+        partial = destination + ".part"
+        last_error = "unknown error"
         for attempt in range(1, max_retries + 1):
             try:
-                rr = s.get(u, headers=headers, timeout=60)
+                # Surrit throttles reused long-lived connections after the initial
+                # burst, so intentionally use a fresh fingerprinted request per segment.
+                rr = requests.get(
+                    url, headers=headers, impersonate=a.impersonate, timeout=30)
                 if rr.status_code == 200:
-                    with open(d, "wb") as f:
+                    with open(partial, "wb") as f:
                         f.write(rr.content)
-                    ts.append(d)
-                    download_success = True
-                    # Probe media info on segment 1 download success (matching N_m3u8DL-RE!)
-                    if i == 0:
-                        probe_media_info(d, ff)
-                    break
+                    os.replace(partial, destination)
+                    return index, destination, None
                 else:
-                    err_msg = f"status={rr.status_code}"
-                    Logger.warn(f"Segment {i + 1}/{len(segs)} attempt {attempt}/{max_retries} {err_msg}")
+                    last_error = f"status={rr.status_code}"
             except Exception as e:
                 raw_err = str(e)
-                # Shorten long libcurl timeout messages
                 if "timed out" in raw_err.lower():
-                    err_msg = "timeout (60s)"
+                    last_error = "timeout (30s)"
                 else:
-                    err_msg = raw_err[:50]
-                Logger.warn(f"Segment {i + 1}/{len(segs)} attempt {attempt}/{max_retries} error: {err_msg}")
-            time.sleep(1)
+                    last_error = raw_err[:80]
+            if attempt < max_retries:
+                time.sleep(1)
 
-        if not download_success:
-            Logger.error(f"Segment {i + 1} failed after {max_retries} attempts. Proceeding to merge downloaded segments...")
-            break
+        try:
+            if os.path.exists(partial):
+                os.remove(partial)
+        except OSError:
+            pass
+        return index, None, last_error
 
-        print_progress(i + 1, len(segs))
+    segment_paths = [None] * len(segs)
+    failed_indices = []
+    probed_media = False
+    with ThreadPoolExecutor(max_workers=thread_count) as executor:
+        futures = {executor.submit(download_segment, i, u): i for i, u in enumerate(segs)}
+        for completed, future in enumerate(as_completed(futures), start=1):
+            index = futures[future]
+            try:
+                index, path, error = future.result()
+            except Exception as e:
+                path, error = None, str(e)[:80]
+
+            if path is not None:
+                segment_paths[index] = path
+                if index == 0 and not probed_media:
+                    probe_media_info(path, ff)
+                    probed_media = True
+            else:
+                failed_indices.append(index)
+                Logger.error(
+                    f"Segment {index + 1}/{len(segs)} failed after {max_retries} attempts: {error}")
+
+            print_progress(completed, len(segs))
+
+    if failed_indices:
+        first_failed = min(failed_indices)
+        Logger.error(
+            f"{len(failed_indices)} segment(s) failed. Merging the contiguous prefix before segment {first_failed + 1}...")
+        segment_paths = segment_paths[:first_failed]
+
+    ts = [path for path in segment_paths if path is not None]
 
     Logger.info(f"Downloaded {len(ts)}/{len(segs)} segment(s)")
     if not ts:

@@ -16,6 +16,7 @@ public class CfCommandBuilderTests
         Referer: "https://example.com/",
         Cookie: "",
         Impersonate: "chrome",
+        ThreadCount: 12,
         KeepSegments: false);
 
     [Fact]
@@ -28,6 +29,7 @@ public class CfCommandBuilderTests
         Assert.Contains("-o \"video.mp4\"", cmd);
         Assert.Contains("--work-dir \"C:\\Save\"", cmd);
         Assert.Contains("--impersonate \"chrome\"", cmd);
+        Assert.Contains("--thread-count \"12\"", cmd);
     }
 
     [Fact]
@@ -85,6 +87,7 @@ public class CfCommandBuilderTests
 
     [Theory]
     [InlineData("https://custom.example/", "https://example.com/a.m3u8", "https://custom.example/")]
+    [InlineData("", "https://surrit.com/id/video.m3u8", "https://missav123.com/")]
     [InlineData("", "https://example.com/path/a.m3u8", "https://example.com/")]
     [InlineData(null, "https://example.com:8443/a.m3u8", "https://example.com:8443/")]
     [InlineData("", "not a url", "")]

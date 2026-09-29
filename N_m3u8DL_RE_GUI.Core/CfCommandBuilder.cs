@@ -15,6 +15,7 @@ public sealed record CfCommandOptions(
     string Referer,
     string Cookie,
     string Impersonate,
+    int ThreadCount,
     bool KeepSegments);
 
 /// <summary>
@@ -34,6 +35,7 @@ public static class CfCommandBuilder
         sb.Append($" --work-dir \"{Escape(o.WorkDir)}\"");
         sb.Append($" --seg-dir \"{Escape(o.SegDir)}\"");
         sb.Append($" --impersonate \"{Escape(o.Impersonate)}\"");
+        sb.Append($" --thread-count \"{Math.Clamp(o.ThreadCount, 1, 64)}\"");
 
         if (!string.IsNullOrEmpty(o.Cookie))
             sb.Append($" --cookie \"{Escape(o.Cookie)}\"");
@@ -64,8 +66,8 @@ public static class CfCommandBuilder
     }
 
     /// <summary>
-    /// Returns the explicit referer when supplied, otherwise the input URL's
-    /// scheme+authority with a trailing slash, otherwise empty.
+    /// Returns the explicit referer when supplied, otherwise a known source-site
+    /// referer for protected CDNs, then the input URL's scheme+authority.
     /// </summary>
     public static string DeriveReferer(string? explicitReferer, string? inputUrl)
     {
@@ -76,9 +78,14 @@ public static class CfCommandBuilder
         if (string.IsNullOrWhiteSpace(inputUrl))
             return string.Empty;
 
-        return Uri.TryCreate(inputUrl.Trim(), UriKind.Absolute, out var uri)
-            ? uri.GetLeftPart(UriPartial.Authority) + "/"
-            : string.Empty;
+        if (!Uri.TryCreate(inputUrl.Trim(), UriKind.Absolute, out var uri))
+            return string.Empty;
+
+        if (uri.Host.Equals("surrit.com", StringComparison.OrdinalIgnoreCase) ||
+            uri.Host.EndsWith(".surrit.com", StringComparison.OrdinalIgnoreCase))
+            return "https://missav123.com/";
+
+        return uri.GetLeftPart(UriPartial.Authority) + "/";
     }
 
     private static string Escape(string? value) =>
