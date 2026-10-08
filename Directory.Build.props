@@ -1,0 +1,13 @@
+<Project>
+  <!-- Single source of truth for the release version. Every project under this
+       directory inherits it, so Core.csproj, the GUI assembly attributes and the
+       window title can no longer disagree. Bump AppVersion only.
+       publish.bat still carries a default value for its own folder naming; keep
+       that in sync (it is the one place MSBuild properties are not available). -->
+  <PropertyGroup>
+    <AppVersion>2.5.0</AppVersion>
+    <Version>$(AppVersion)</Version>
+    <AssemblyVersion>$(AppVersion).0</AssemblyVersion>
+    <FileVersion>$(AppVersion).0</FileVersion>
+  </PropertyGroup>
+</Project>

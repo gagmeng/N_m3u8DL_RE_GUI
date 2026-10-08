@@ -45,6 +45,7 @@
 ### Main Benefits:
 
 - 🚀 **No command-line memorization** - Common options are available through simple UI controls.
+- ⏯️ **Resume Interrupted Downloads** - Automatically detects stopped or crashed downloads with existing segments on disk. Seamlessly attach a fresh stream link (since signed URLs expire quickly) and resume without losing previously downloaded chunks.
 - 🎬 **Native Abyss & Hydrax Support** - Direct AES-CTR chunk decryption and assembly for `abysscdn.com`, `playhydrax.com`, `zplayer.io`, and `short.ink` without external tools.
 - 📦 **Batch processing** - Download multiple streams from text files or folders with one click.
 - 🔒 **Privacy First** - Your settings and headers are automatically saved between sessions and heavily encrypted using Windows DPAPI.
@@ -55,6 +56,15 @@
 ---
 
 <!-- GETTING STARTED -->
+
+## What's New in 2.5.0 (2026-10-08)
+
+This release brings in three self-contained features from upstream that this fork had been missing, and upgrades the browser extension.
+
+- **Resume interrupted downloads** - the temp directory is now derived deterministically as `<saveDir>/.nre-tmp/<saveName>`, so the engine reuses segments already downloaded. An active-job record is written on start and cleared on success; on launch an amber banner offers to resume an unfinished download with a fresh link, or to discard it. The record stores only the source hostname, never full URLs or tokens.
+- **One source of truth for the version** - `Directory.Build.props` now holds `<AppVersion>`; every project and the GUI's assembly attributes inherit it, so the version can no longer drift between artifacts.
+- **Honest update checking** - the binary boolean is replaced by `UpdateCheckStatus` (`UpToDate` / `UpdateAvailable` / `CheckFailed`). A network failure or an unparseable tag now reports a failure instead of silently reading as "you are current". The check targets `gagmeng/N_m3u8DL_RE_GUI`, where this fork publishes.
+- **Browser extension v1.4.5** - 15 new modules (ad blocklist, cookie merging, header policy, impersonation profiles, inflight headers, list policy, media URL, MSS, native messaging, probe policy, suite version/update check), a popup redesign, and a suite update badge. The extension test suite went from 108 to 362 tests.
 
 ## What's New in 2.4.0 (2026-10-08)
 
@@ -82,14 +92,14 @@ We have intentionally kept the installation process as simple as possible. No in
 
 ### 1. Download
 
-Download the latest release (`N_m3u8DL_RE_GUI_v2.4.0.zip`) from our [GitHub Releases](https://github.com/gagmeng/N_m3u8DL_RE_GUI/releases) page.
+Download the latest release (`N_m3u8DL_RE_GUI_v2.5.0.zip`) from our [GitHub Releases](https://github.com/gagmeng/N_m3u8DL_RE_GUI/releases) page.
 
 ### 2. Extract
 
 Extract the `.zip` file anywhere on your computer. Inside the folder, you will find 4 core files plus the optional companion browser extension:
 
 ```text
-N_m3u8DL_RE_GUI_v2.4.0/
+N_m3u8DL_RE_GUI_v2.5.0/
 ├── N_m3u8DL_RE_GUI.exe    <-- The main application (Double click this!)
 ├── N_m3u8DL-RE.exe        <-- The core download engine
 ├── ffmpeg.exe             <-- The video/audio muxing engine
@@ -130,7 +140,7 @@ Simply double-click `N_m3u8DL_RE_GUI.exe` to launch the application.
 | Batch File  | Drop a `.txt` file containing multiple URLs (one per line). |
 | Folder      | Drop a folder containing stream files to batch process them all. |
 
-### N-RE Stream Bridge Browser Extension (v1.3.0)
+### N-RE Stream Bridge Browser Extension (v1.4.5)
 
 Use the companion browser extension **N-RE Stream Bridge** in `extension/` for 1-click stream capture, quality selection, and multi-URL batch queues in Chrome, Edge, and Brave:
 1. Open `chrome://extensions` and enable **Developer mode**.
@@ -163,6 +173,7 @@ If a website is blocking you with Cloudflare, open the **Network tab (🌐)** an
 
 ### Core Features
 - **Universal Stream Capture** - Paste browser cURL commands directly, drag-and-drop `.har` captures with automated stream ranking and picking, or use the **N-RE Stream Bridge** browser extension.
+- **Resume Interrupted Downloads** - Automatically derives deterministic temp directories (`<saveDir>/.nre-tmp/<saveName>`) and persists active job metadata. On startup, detects unfinished downloads with saved segments, offers a 1-click resume workflow with a fresh stream link, or clean discards.
 - **Native Abyss / Hydrax Downloader** - Built-in zero-dependency C# crypto engine that decrypts and reassembles fragmented chunks from `abysscdn.com`, `playhydrax.com`, `zplayer.io`, and `short.ink`.
 - **3-Zone Modern UX/UI Architecture** - Clean layout with a top URL hero bar, a 6-Tab sidebar (`📦 Download`, `🌐 Network`, `🔒 Security`, `🎬 Media`, `📡 Live`, `⚙️ Advanced`), and a fixed command preview bar at the bottom.
 - **Dark / Light Theme Switching** - One-click theme combo in the title bar; the entire UI (including log history) re-colours instantly without a restart. The Light palette is WCAG AA-verified.
@@ -174,12 +185,13 @@ If a website is blocking you with Cloudflare, open the **Network tab (🌐)** an
 
 ### Security and Stability
 - **Windows DPAPI Secret Protection** - Your custom headers, proxies, decryption keys, and IVs are safely encrypted via Windows DPAPI in your `config.json` file. No plaintext secrets!
+- **Credential Privacy on Resume** - Resume job records intentionally store only the source hostname (never raw stream URLs or signed access tokens).
 - **Thread-Safe Cancellation** - Responsive process cancellation with clean token lifetime management that safely terminates child process trees — closing the GUI also stops any running download.
 - **In-Window Live Feedback & Progress** - Real-time progress bar, live status messages, collapsible diagnostic log, and an "Open Folder" button on completion.
 - **Severity-Coloured Log** - Log lines are colour-coded like the engine's own console: INFO green, WARN amber, ERROR red, DEBUG dim. Repetitive ffmpeg warnings collapse into a single suppression note; idle 100% progress redraws are deduplicated.
 - **Failure Recovery Pipeline** - On failed downloads the GUI audits the temp segments, auto-retries (reusing existing segments), falls back to the CF-bypass path on TLS blocks, and can merge partial videos with visible gap warnings (see [Troubleshooting](#troubleshooting-failed-downloads)).
 - **Accessible & Keyboard Ready** - High-contrast focus visual indicators, access keys (`Alt+G` for Go, `Alt+S` / `Escape` for Stop), and full UI automation properties.
-- **Automated Test Suite (819 Tests)** - Rock-solid stability backed by 711 .NET unit/integration/contrast/a11y tests covering all core models, services, XAML a11y and view models, plus 108 Node.js tests for the browser extension.
+- **Automated Test Suite (1132 Tests)** - Rock-solid stability backed by 770 .NET unit/integration/contrast/a11y tests (771 total, 1 live integration skip) covering all core models, services, XAML a11y and view models, plus 362 Node.js tests for the browser extension.
 
 ### Download Options
 - **Concurrent Downloads** - Download multiple streams simultaneously.
@@ -214,7 +226,7 @@ If a website is blocking you with Cloudflare, open the **Network tab (🌐)** an
 
 ### Building a Release
 
-Bump the version in `N_m3u8DL_RE_GUI/Properties/AssemblyInfo.cs`, `N_m3u8DL_RE_GUI.Core/N_m3u8DL_RE_GUI.Core.csproj` and the `VERSION` default in `publish.bat`, then run:
+Bump `<AppVersion>` in `Directory.Build.props` — the single source of truth for the release version, inherited by every project and by the GUI's assembly attributes. Also keep the `VERSION` default in `publish.bat` in sync: it names its own output folder and is the one place MSBuild properties are not available. Then run:
 
 ```bash
 dotnet publish N_m3u8DL_RE_GUI\N_m3u8DL_RE_GUI.csproj -c Release -r win-x64 --self-contained true \
@@ -222,7 +234,7 @@ dotnet publish N_m3u8DL_RE_GUI\N_m3u8DL_RE_GUI.csproj -c Release -r win-x64 --se
   -p:EnableCompressionInSingleFile=true
 ```
 
-The csproj already copies `N_m3u8DL-RE.exe`, `ffmpeg.exe` and `m3u8_cf_bypass.py` into the output and marks them `ExcludeFromSingleFile` so the bundler leaves them beside the executable. A complete release archive contains those four files plus the optional `extension/` folder.
+The csproj already copies `N_m3u8DL-RE.exe`, `ffmpeg.exe` and `m3u8_cf_bypass.py` into the output and marks them `ExcludeFromSingleFile` so the bundler leaves them beside the executable. A complete release archive contains those four files plus the optional `extension/` folder. The archive derives its version from the compiled binary's assembly metadata rather than hardcoded literals, so it cannot drift from `Directory.Build.props`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

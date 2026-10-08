@@ -73,6 +73,9 @@ namespace N_m3u8DL_RE_GUI
         // Captured from the XAML so the batch flow can restore the real label (icon and
         // access key included) instead of hard-coding a second, drifting copy of it.
         private object? _downloadButtonLabel;
+        // The interrupted job the banner is offering to resume, if any. Its temp folder
+        // steers the next download only while the save name still matches that job.
+        private N_m3u8DL_RE_GUI.Core.Resume.ResumeJob? _activeResumeJob;
         // DefaultBorderBrush is gone: the resting border now comes from TextBoxStyle, which
         // is the only place it should ever have been defined.
 
@@ -225,6 +228,25 @@ namespace N_m3u8DL_RE_GUI
                 ApplyValidationState(TextBox_EXE, TextBox_EXE == null || string.IsNullOrWhiteSpace(TextBox_EXE.Text) || File.Exists(TextBox_EXE.Text));
         }
 
+        /// <summary>
+        /// The temp directory the engine should use: the user's own setting wins, then a
+        /// resumed job's folder (only while the save name still matches it), then a
+        /// deterministic folder derived from the save directory and name. The derivation
+        /// is what lets a retry, or a later session, find the segments already downloaded
+        /// instead of starting a fresh cache beside them.
+        /// </summary>
+        private string? ResolveTmpDir()
+        {
+            var saveDir = OptionValueNormalizer.NormalizeSaveDir(TextBox_WorkDir.Text);
+            var resolved = N_m3u8DL_RE_GUI.Core.Resume.ResumePaths.ResolveTmpDir(
+                TextBox_TmpDir?.Text,
+                _activeResumeJob?.TmpDir,
+                _activeResumeJob?.SaveName,
+                saveDir,
+                TextBox_Title.Text);
+            return string.IsNullOrWhiteSpace(resolved) ? null : resolved;
+        }
+
         string BuildArgsRE(string? inputOverride = null)
         {
             var options = new DownloadOptions
@@ -232,12 +254,12 @@ namespace N_m3u8DL_RE_GUI
                 // Basic Settings
                 Input = string.IsNullOrWhiteSpace(inputOverride) ? TextBox_URL.Text : inputOverride,
                 SaveDir = OptionValueNormalizer.NormalizeSaveDir(TextBox_WorkDir.Text),
-                TmpDir = TextBox_TmpDir?.Text?.Trim(),
+                TmpDir = ResolveTmpDir(),
                 SaveName = TextBox_Title.Text,
                 Headers = TextBox_Headers.Text,
                 BaseUrl = TextBox_Baseurl.Text,
                 MuxImport = TextBox_MuxJson.Text?.Trim(),
-                
+
                 // Encryption
                 Key = TextBox_Key.Text?.Trim(),
                 CustomHLSKey = TextBox_CustomHLSKey?.Text?.Trim(),
@@ -347,7 +369,7 @@ namespace N_m3u8DL_RE_GUI
                 // Basic Settings
                 Input = TextBox_URL.Text,
                 SaveDir = OptionValueNormalizer.NormalizeSaveDir(TextBox_WorkDir.Text),
-                TmpDir = TextBox_TmpDir?.Text?.Trim(),
+                TmpDir = ResolveTmpDir(),
                 SaveName = TextBox_Title.Text,
                 Headers = TextBox_Headers.Text,
                 BaseUrl = TextBox_Baseurl.Text,
@@ -828,6 +850,9 @@ namespace N_m3u8DL_RE_GUI
                 SyncDependentControlStates();
                 ClampToWorkArea();
                 GetParameter();
+                // After GetParameter, so the restored save name/folder are already in
+                // the fields the banner would overwrite on Resume.
+                CheckForResumableJob();
 
                 _ = Task.Run(() => CleanStaleTempBatchFiles());
 
@@ -849,6 +874,121 @@ namespace N_m3u8DL_RE_GUI
                         () => new N_m3u8DL_RE_GUI.Core.Services.EngineUpdateCheckService().CheckFfmpegAsync(),
                         TextBlock_FfmpegStatus, Button_CheckFfmpeg);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Looks for an interrupted download with segments still on disk and offers to
+        /// resume it. Only the hostname is ever persisted, never the stream URL, so the
+        /// user has to paste a fresh link — signed links expire, and the segments already
+        /// downloaded are what makes that worthwhile.
+        /// </summary>
+        private void CheckForResumableJob()
+        {
+            try
+            {
+                var job = Services.ResumeJobStore.Default.TryFindResumable();
+                if (job != null && job.ExistingBytes > 0)
+                {
+                    _activeResumeJob = job;
+                    var name = string.IsNullOrWhiteSpace(job.SaveName)
+                        ? "Unfinished download"
+                        : $"Unfinished download — \"{job.SaveName}\"";
+                    TextBlock_ResumeTitle.Text = name;
+
+                    var host = string.IsNullOrWhiteSpace(job.SourceHost) ? string.Empty : $" · from {job.SourceHost}";
+                    TextBlock_ResumeDetail.Text =
+                        $"{FormatByteSize(job.ExistingBytes)} already saved · stopped {FormatTimeAgo(job.StartedAt)}{host}";
+                    Border_ResumeBanner.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    _activeResumeJob = null;
+                    Border_ResumeBanner.Visibility = Visibility.Collapsed;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MainWindow] CheckForResumableJob error: {ex.Message}");
+                _activeResumeJob = null;
+                Border_ResumeBanner.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private static string FormatByteSize(long bytes)
+        {
+            if (bytes < 1024) return $"{bytes} B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+            if (bytes < 1024L * 1024L * 1024L) return $"{bytes / (1024.0 * 1024.0):F0} MB";
+            return $"{bytes / (1024.0 * 1024.0 * 1024.0):F1} GB";
+        }
+
+        private static string FormatTimeAgo(DateTimeOffset startedAt)
+        {
+            var elapsed = DateTimeOffset.UtcNow - startedAt;
+            if (elapsed.TotalMinutes < 1) return "just now";
+            if (elapsed.TotalMinutes < 60)
+            {
+                var m = Math.Max(1, (int)elapsed.TotalMinutes);
+                return $"{m} minute{(m == 1 ? "" : "s")} ago";
+            }
+            if (elapsed.TotalHours < 24)
+            {
+                var h = (int)elapsed.TotalHours;
+                return $"{h} hour{(h == 1 ? "" : "s")} ago";
+            }
+            var d = (int)elapsed.TotalDays;
+            return $"{d} day{(d == 1 ? "" : "s")} ago";
+        }
+
+        private void Button_ResumeJob_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeResumeJob == null)
+                return;
+
+            if (!string.IsNullOrWhiteSpace(_activeResumeJob.SaveName))
+                TextBox_Title.Text = _activeResumeJob.SaveName;
+            if (!string.IsNullOrWhiteSpace(_activeResumeJob.SaveDir))
+                TextBox_WorkDir.Text = _activeResumeJob.SaveDir;
+
+            // The stored link is never reused: it is expired by now, and a stale URL
+            // failing with 403 is exactly what makes users think resume is broken.
+            TextBox_URL.Text = string.Empty;
+            TextBox_URL.Focus();
+
+            Border_ResumeBanner.Visibility = Visibility.Collapsed;
+            SetStatus("Paste a fresh link for this video. The original link has expired — that is normal, and everything already downloaded will be kept.");
+        }
+
+        private void Button_DiscardJob_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeResumeJob == null)
+                return;
+
+            var size = FormatByteSize(_activeResumeJob.ExistingBytes);
+            var target = string.IsNullOrWhiteSpace(_activeResumeJob.SaveName)
+                ? "this download"
+                : $"\"{_activeResumeJob.SaveName}\"";
+
+            var result = MessageBox.Show(
+                $"Delete {size} of partial download for {target}? This cannot be undone.",
+                "Discard Interrupted Download",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes)
+                return;
+
+            if (Services.ResumeJobStore.Default.Discard())
+            {
+                Border_ResumeBanner.Visibility = Visibility.Collapsed;
+                _activeResumeJob = null;
+                SetStatus("Partial download discarded.");
+            }
+            else
+            {
+                MessageBox.Show(
+                    "Could not delete partial files. A file may still be in use by another process.",
+                    "Discard Failed", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1197,6 +1337,14 @@ namespace N_m3u8DL_RE_GUI
                             ? Environment.CurrentDirectory
                             : options.SaveDir;
 
+                        // Record the job before the engine starts. If it is killed or the
+                        // machine goes down, this is the only thing that lets the next
+                        // session find the segments; on success it is removed again, so a
+                        // record on disk always means "something was left behind".
+                        Services.ResumeJobStore.Default.Begin(
+                            options.Input, options.SaveName ?? string.Empty,
+                            options.SaveDir ?? string.Empty, options.TmpDir ?? string.Empty);
+
                         ResetRunState();
                         SetStatus("Downloading…");
 
@@ -1207,6 +1355,9 @@ namespace N_m3u8DL_RE_GUI
 
                         if (succeeded)
                         {
+                            Services.ResumeJobStore.Default.Complete();
+                            _activeResumeJob = null;
+                            Border_ResumeBanner.Visibility = Visibility.Collapsed;
                             ProgressBar_Download.Value = 100;
                             SetStatus($"Saved to {_lastOutputDirectory}");
                             Button_OpenFolder.Visibility = Visibility.Visible;
@@ -1658,11 +1809,16 @@ namespace N_m3u8DL_RE_GUI
         private void Hyperlink_Ffmpeg_Click(object sender, RoutedEventArgs e) =>
             StartShellTarget("https://github.com/FFmpeg/FFmpeg");
 
+        // Releases are published from this fork. Pointing the checker at upstream would
+        // offer users a different build with its own version numbering.
+        private const string UpdateRepoOwner = "gagmeng";
+        private const string UpdateRepoName = "N_m3u8DL_RE_GUI";
+
         private void Button_UpdateBadge_Click(object sender, RoutedEventArgs e)
         {
             string? url = _guiUpdateReleaseUrl;
             if (string.IsNullOrEmpty(url))
-                url = "https://github.com/naravid19/N_m3u8DL_RE_GUI/releases/latest";
+                url = $"https://github.com/{UpdateRepoOwner}/{UpdateRepoName}/releases/latest";
             StartShellTarget(url);
         }
 
@@ -1676,41 +1832,67 @@ namespace N_m3u8DL_RE_GUI
                 if (Button_CheckUpdate != null) Button_CheckUpdate.IsEnabled = false;
                 if (TextBlock_UpdateStatus != null) TextBlock_UpdateStatus.Text = "Checking...";
 
-                var service = new N_m3u8DL_RE_GUI.Core.Services.GitHubUpdateCheckService();
-                var currentVer = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version ?? new Version(2, 1, 7);
-                var result = await service.CheckForUpdateAsync("naravid19", "N_m3u8DL_RE_GUI", currentVer);
-
-                if (result.HasUpdate)
+                var currentVer = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                if (currentVer == null)
                 {
-                    Button_UpdateBadge.Content = $"发现新版本 {result.LatestVersion}";
-                    _guiUpdateReleaseUrl = result.ReleaseUrl;
-                    Button_UpdateBadge.Visibility = Visibility.Visible;
-                    if (TextBlock_UpdateStatus != null)
-                        TextBlock_UpdateStatus.Text = $"{result.LatestVersion} available!";
+                    // No safe guess exists: too low nags about the installed version, too
+                    // high hides every real update. Say nothing rather than mislead.
+                    if (isManual && TextBlock_UpdateStatus != null)
+                        TextBlock_UpdateStatus.Text = "Could not determine this app's version.";
+                    return;
                 }
-                else
+
+                var service = new N_m3u8DL_RE_GUI.Core.Services.GitHubUpdateCheckService();
+                // This build ships from the fork's releases, not the upstream repo's — a
+                // check against upstream would offer a different product line's binary.
+                var result = await service.CheckForUpdateAsync(UpdateRepoOwner, UpdateRepoName, currentVer);
+
+                switch (result.Status)
                 {
-                    if (TextBlock_UpdateStatus != null)
-                    {
-                        if (isManual)
+                    case N_m3u8DL_RE_GUI.Core.Services.UpdateCheckStatus.UpdateAvailable:
+                        Button_UpdateBadge.Content = $"🎉 {result.LatestVersion} Available!";
+                        _guiUpdateReleaseUrl = result.ReleaseUrl;
+                        Button_UpdateBadge.Visibility = Visibility.Visible;
+                        if (TextBlock_UpdateStatus != null)
+                            TextBlock_UpdateStatus.Text = $"{result.LatestVersion} available!";
+                        break;
+
+                    case N_m3u8DL_RE_GUI.Core.Services.UpdateCheckStatus.UpToDate:
+                        Button_UpdateBadge.Visibility = Visibility.Collapsed;
+                        if (TextBlock_UpdateStatus != null)
                         {
-                            TextBlock_UpdateStatus.Text = "Latest version";
-                            var timer = new System.Windows.Threading.DispatcherTimer
+                            if (isManual)
                             {
-                                Interval = TimeSpan.FromSeconds(3)
-                            };
-                            timer.Tick += (s, e) =>
+                                TextBlock_UpdateStatus.Text = "✓ Latest version";
+                                var timer = new System.Windows.Threading.DispatcherTimer
+                                {
+                                    Interval = TimeSpan.FromSeconds(3)
+                                };
+                                timer.Tick += (s, e) =>
+                                {
+                                    TextBlock_UpdateStatus.Text = "";
+                                    ((System.Windows.Threading.DispatcherTimer)s!).Stop();
+                                };
+                                timer.Start();
+                            }
+                            else
                             {
                                 TextBlock_UpdateStatus.Text = "";
-                                ((System.Windows.Threading.DispatcherTimer)s!).Stop();
-                            };
-                            timer.Start();
+                            }
                         }
-                        else
+                        break;
+
+                    case N_m3u8DL_RE_GUI.Core.Services.UpdateCheckStatus.CheckFailed:
+                    default:
+                        if (TextBlock_UpdateStatus != null)
                         {
-                            TextBlock_UpdateStatus.Text = "";
+                            // A failed check is not "you are current" — saying so would
+                            // hide a real update behind a network blip.
+                            TextBlock_UpdateStatus.Text = isManual
+                                ? "Could not check for updates — check your connection."
+                                : "";
                         }
-                    }
+                        break;
                 }
             }
             finally

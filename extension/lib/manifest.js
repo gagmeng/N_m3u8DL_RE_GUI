@@ -2,6 +2,7 @@
  * Pure manifest parsers for HLS master playlists and DASH MPD manifests.
  * Runs in both browser popup and node --test (pure JS, zero DOMParser dependency).
  */
+import { formatBitrate } from './format.js';
 
 /**
  * Parses an HLS attribute list (e.g. BANDWIDTH=5000000,CODECS="avc1,mp4a",AUDIO="aud").
@@ -47,19 +48,6 @@ export function parseAttributeList(attrStr) {
 }
 
 /**
- * Formats bandwidth (bits per second) into a clean Mbps / kbps string.
- */
-function formatBitrate(bps) {
-  if (!bps || typeof bps !== 'number' || bps <= 0) return '';
-  if (bps >= 1000000) {
-    const mbps = bps / 1000000;
-    return `${mbps >= 10 ? Math.round(mbps) : mbps.toFixed(1)} Mbps`;
-  }
-  const kbps = Math.round(bps / 1000);
-  return `${kbps} kbps`;
-}
-
-/**
  * Describes a variant in a human-friendly string (e.g. "1080p · 5.0 Mbps", "audio · 128 kbps").
  */
 export function describeVariant(v) {
@@ -102,6 +90,7 @@ export function parseHlsMaster(text, baseUrl) {
     for (let j = i + 1; j < lines.length; j++) {
       const nextLine = lines[j].trim();
       if (!nextLine) continue;
+      if (nextLine.startsWith('#EXT-X-STREAM-INF:')) break;
       if (nextLine.startsWith('#')) continue;
       uri = nextLine;
       break;
@@ -166,6 +155,12 @@ export function parseDashManifest(text, baseUrl) {
     const isAudio = mime.includes('audio') || /contentType=["']audio["']/i.test(chunk);
     const kind = isAudio ? 'audio' : 'video';
 
+    // Parse AdaptationSet level dimension fallback (width / maxWidth, height / maxHeight)
+    const adaptWidthMatch = /\b(?:width|maxWidth)=["'](\d+)["']/i.exec(chunk);
+    const adaptHeightMatch = /\b(?:height|maxHeight)=["'](\d+)["']/i.exec(chunk);
+    const adaptWidth = adaptWidthMatch ? Number.parseInt(adaptWidthMatch[1], 10) : null;
+    const adaptHeight = adaptHeightMatch ? Number.parseInt(adaptHeightMatch[1], 10) : null;
+
     // Parse each <Representation ... /> or <Representation ...> inside
     const repRegex = /<Representation\b([^>]*)/gi;
     let repMatch;
@@ -178,8 +173,8 @@ export function parseDashManifest(text, baseUrl) {
       const bwMatch = /\bbandwidth=["'](\d+)["']/i.exec(repAttrs);
       const codecsMatch = /\bcodecs=["']([^"']+)["']/i.exec(repAttrs);
 
-      const width = widthMatch ? Number.parseInt(widthMatch[1], 10) : null;
-      const height = heightMatch ? Number.parseInt(heightMatch[1], 10) : null;
+      const width = widthMatch ? Number.parseInt(widthMatch[1], 10) : adaptWidth;
+      const height = heightMatch ? Number.parseInt(heightMatch[1], 10) : adaptHeight;
       const bandwidth = bwMatch ? Number.parseInt(bwMatch[1], 10) : null;
       const codecs = codecsMatch ? codecsMatch[1] : null;
 
@@ -189,7 +184,7 @@ export function parseDashManifest(text, baseUrl) {
         height: Number.isFinite(height) ? height : null,
         bandwidth: Number.isFinite(bandwidth) ? bandwidth : null,
         codecs,
-        url: baseUrl,
+        url: null,
         label: ''
       };
       variant.label = describeVariant(variant);

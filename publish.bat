@@ -6,8 +6,9 @@ echo ========================================================
 
 set "SOLUTION_DIR=%~dp0"
 set "VERSION=%~1"
-REM Keep this default in sync with <Version> in N_m3u8DL_RE_GUI.Core\N_m3u8DL_RE_GUI.Core.csproj
-if "%VERSION%"=="" set "VERSION=2.4.0"
+REM Keep this default in sync with <AppVersion> in Directory.Build.props, the
+REM single source of truth for the version (MSBuild properties are not readable here).
+if "%VERSION%"=="" set "VERSION=2.5.0"
 set "PUBLISH_DIR=%SOLUTION_DIR%Publish\N_m3u8DL_RE_GUI_v%VERSION%"
 set "PROJECT_FILE=%SOLUTION_DIR%N_m3u8DL_RE_GUI\N_m3u8DL_RE_GUI.csproj"
 
@@ -51,6 +52,15 @@ if exist "%SOLUTION_DIR%ffmpeg.exe" (
 if exist "%SOLUTION_DIR%m3u8_cf_bypass.py" (
     echo Copying m3u8_cf_bypass.py...
     copy "%SOLUTION_DIR%m3u8_cf_bypass.py" "%PUBLISH_DIR%" >nul
+)
+
+if exist "%SOLUTION_DIR%extension\manifest.json" (
+    echo Copying extension...
+    REM /XD skips the test folder: the shipped extension is load-unpacked content,
+    REM not a development tree. This only affects the copy; the source is untouched.
+    robocopy "%SOLUTION_DIR%extension" "%PUBLISH_DIR%\extension" /E /XD "%SOLUTION_DIR%extension\test" /NFL /NDL /NJH /NJS /NP >nul
+) else (
+    echo [WARNING] extension folder not found. The release will ship without the browser extension.
 )
 
 echo.

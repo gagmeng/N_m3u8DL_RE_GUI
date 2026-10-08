@@ -824,6 +824,49 @@
                     </StackPanel>
                 </Grid>
 
+                <!-- Interrupted-download banner. Reuses the amber warning pair the
+                     Cloudflare scope note already uses, so both read as "attention,
+                     not error" in either theme. Collapsed unless a job record with
+                     segments still on disk was found at startup. -->
+                <Border x:Name="Border_ResumeBanner" Visibility="Collapsed"
+                        Background="{DynamicResource CfWarningBgBrush}" BorderBrush="{DynamicResource CfAmberBrush}"
+                        BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock x:Name="TextBlock_ResumeTitle" FontWeight="SemiBold" FontSize="12"
+                                       Foreground="{DynamicResource CfAmberBrush}"
+                                       TextWrapping="Wrap"
+                                       AutomationProperties.Name="Interrupted Download Title"
+                                       Text="Unfinished download"/>
+                            <TextBlock x:Name="TextBlock_ResumeDetail" FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0"
+                                       TextWrapping="Wrap"
+                                       AutomationProperties.Name="Interrupted Download Details"
+                                       Text="Partial download found on disk."/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                            <Button x:Name="Button_ResumeJob" Content="Resume"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Foreground="{DynamicResource CfAmberBrush}"
+                                    BorderBrush="{DynamicResource CfAmberBrush}"
+                                    Padding="10,4" Margin="0,0,6,0"
+                                    Click="Button_ResumeJob_Click"
+                                    AutomationProperties.Name="Resume interrupted download"
+                                    ToolTip="Restore the save name and folder, then paste a fresh link"/>
+                            <Button x:Name="Button_DiscardJob" Content="Discard"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Padding="10,4"
+                                    Click="Button_DiscardJob_Click"
+                                    AutomationProperties.Name="Discard interrupted download"
+                                    ToolTip="Delete the partial segments and the job record"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <!-- Quick Path Row. Columns 0/1/2 repeat the URL row's grid, so Save Dir's
                      field shares its left edge with the URL field and Browse its right edge
                      with Paste from browser / GO; the row as a whole ends on the same right

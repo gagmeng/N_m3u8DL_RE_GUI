@@ -10,7 +10,15 @@
 
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+
+    <!-- Branding lives here rather than in AssemblyInfo.cs, which now carries only
+         ThemeInfo and InternalsVisibleTo. GenerateAssemblyInfo must stay on: it is
+         what emits the version attributes from Directory.Build.props. -->
+    <AssemblyTitle>N_m3u8DL-RE GUI</AssemblyTitle>
+    <Description>A modern, user-friendly GUI wrapper for N_m3u8DL-RE</Description>
+    <Company>N_m3u8DL-RE-GUI Community</Company>
+    <Product>N_m3u8DL-RE GUI</Product>
+    <Copyright>Copyright © 2026</Copyright>
   </PropertyGroup>
 
   <!-- The three engine files ship next to the GUI and are launched as separate
@@ -49,4 +57,20 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8" />
   </ItemGroup>
+
+  <!-- The extension ships inside the GUI's zip and needs to know which suite
+       release it came with. Generating it from $(AppVersion) keeps
+       Directory.Build.props the only place anyone types a version. The file is
+       a build output: it is written into the extension source folder so a
+       packed extension always carries it, and is not tracked by git. -->
+  <Target Name="WriteSuiteVersionForExtension" AfterTargets="Build">
+    <PropertyGroup>
+      <SuiteVersionFile>$(MSBuildThisFileDirectory)..\extension\suite-version.json</SuiteVersionFile>
+    </PropertyGroup>
+    <WriteLinesToFile
+      File="$(SuiteVersionFile)"
+      Lines="{ &quot;suiteVersion&quot;: &quot;$(AppVersion)&quot; }"
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true" />
+  </Target>
 </Project>

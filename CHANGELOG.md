@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.0] - 2026-10-08
+
+### Added
+
+- **Merged from upstream (`naravid19/N_m3u8DL_RE_GUI`)**: three self-contained features this fork had been missing, taken over in one piece each.
+  - **Resume Interrupted Downloads** — `ResumePaths` / `ResumeJobStore` / startup resume banner (see the 2.1.5 entry below for the full description).
+  - **Single Source of Truth for the version** — `Directory.Build.props` `AppVersion`, inherited by every project.
+  - **Honest 3-State Update Check** — `UpdateCheckStatus` (`UpToDate` / `UpdateAvailable` / `CheckFailed`), so a network failure no longer reads as "you are current". The check points at `gagmeng/N_m3u8DL_RE_GUI`, not upstream.
+- **Browser Extension upgraded to v1.4.5** — 15 new `lib/` modules and a popup redesign, taking the extension suite from 108 to 362 tests, with the suite release check pointed at this fork.
+- **Automated test suite grew to 1132 tests** (770 .NET + 362 Node.js).
+
+### Changed
+
+- **The update checker and the extension's suite check now target `gagmeng`, not upstream.** Upstream's code hardcodes `naravid19`; copying that verbatim would send users an update badge pointing at a different product line with its own version numbering.
+- **Documentation restored.** An earlier commit (`cd366f4`) deleted the Resume / `Directory.Build.props` / 3-state-update / extension-suite paragraphs as "fictional". They were accurate descriptions of upstream work this fork had not yet merged. They are back, annotated with their merge status.
+- `publish.bat` now copies `extension/` into the release folder and its `VERSION` comment points at `Directory.Build.props`.
+- Version advanced to **2.5.0**.
+
+---
+
 ## [2.4.0] - 2026-10-08
 
 ### Fixed
@@ -153,8 +173,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+> **Merge status.** The entries below describe the upstream release. Items marked
+> **(merged 2.5.0)** are now present in this fork's tree; items marked **(upstream
+> only)** exist upstream but are not merged here yet. An earlier revision of this
+> file deleted all of them as "fictional" — they were accurate descriptions of
+> upstream work this fork had not yet pulled in.
+
+- **Resume Interrupted Downloads (`N_m3u8DL_RE_GUI.Core.Resume`)** — **(merged 2.5.0)**:
+  - **Deterministic Temp Directory (`ResumePaths`)**: Derives `<save folder>/.nre-tmp/<sanitised saveName>` automatically when `--tmp-dir` is empty, ensuring N_m3u8DL-RE reuses downloaded segments across sessions. Includes DOS reserved device name protection (`CON`, `PRN`, `AUX`, `NUL`, `COM1..9`, `LPT1..9`) and stable prefix hash deduplication for long filenames.
+  - **Active Job Tracking (`ResumeJobStore`)**: Atomically writes `%LOCALAPPDATA%\N_m3u8DL_RE_GUI\active-job.json` on download start and deletes upon successful completion. Interrupted or stopped downloads leave the record intact so existing segments are recoverable.
+  - **Credential Safety**: The job record stores only the source hostname (`SourceHost`), never full stream URLs or access tokens, ensuring signed authentication tokens and cookies are never stored in plaintext.
+  - **Startup Resume Banner (`Border_ResumeBanner`)**: On application launch, checks for incomplete downloads with segments on disk. Displays an amber banner naming the unfinished file, saved byte size, time elapsed, and source domain with 1-click **Resume** and **Discard** actions.
+  - **Fresh Link Re-attachment Workflow**: Restores save name, save folder, and temp directory into GUI fields while prompting the user to paste a fresh link (avoiding expired token 403 errors), seamlessly continuing the download from existing segments.
+  - **Safe Discard**: Confirms deletion naming the exact byte size and cleans up both the temp segment directory and active job record.
+- **Honest 3-State Update Checker & Single Source of Truth (`Directory.Build.props`)** — **(merged 2.5.0)**:
+  - **Single Source of Truth (`Directory.Build.props`)**: Solution-wide MSBuild configuration defining `<AppVersion>`, automatically propagating assembly and file versions across all projects (`N_m3u8DL_RE_GUI`, `N_m3u8DL_RE_GUI.Core`, `N_m3u8DL_RE_GUI.Tests`) without duplicate hardcoded literals.
+  - **Honest 3-State Checking (`GitHubUpdateCheckService`)**: Replaced binary boolean checking with `UpdateCheckStatus` enum (`UpToDate`, `UpdateAvailable`, `CheckFailed`). Removed fallback guesses from User-Agent and version comparisons; network failures or unparseable release tags report `CheckFailed` rather than falsely claiming up-to-date.
+  - **Dynamic GUI Branding**: Window title and version header text dynamically derive from assembly metadata at runtime. This fork points the checker at `gagmeng/N_m3u8DL_RE_GUI`, because that is where its own releases are published.
+- **N-RE Stream Bridge Browser Extension (v1.3.0 → v1.4.5) & Suite Update Check** — **(merged 2.5.0)**:
+  - **Suite Release Checker (`update-check.js`, `suite-version.js`)**: MSBuild target `WriteSuiteVersionForExtension` auto-generates `extension/suite-version.json` from `$(AppVersion)` on every build. Extension reads suite version and checks GitHub releases using `response.url` resolution to avoid browser opaque-redirect restrictions. The check is pointed at `gagmeng/N_m3u8DL_RE_GUI`, where this fork publishes.
+  - **Daily Cached Checks (`storage.js`)**: Caches update check results in `chrome.storage.local` with 24-hour TTL (success) and 5-minute TTL (failure) to prevent redundant GitHub requests on every popup open.
+  - **Suite Update Badge**: Shows the GUI version and a link to GitHub releases when a new suite version is published.
+  - **Extension v1.4.5**: 15 new `lib/` modules (ad blocklist, cookies, header policy, impersonation profiles, inflight headers, list policy, media URL, MSS, native messaging, probe policy, suite version, update check, version, icons) taking the suite from 6 modules to 21 and to 362 passing `node --test` tests.
 - **N-RE Stream Bridge Browser Extension (v1.3.0)**:
-  - **Neutral Stream Presentation**: Presents all sniffed streams objectively with their exact MIME type, bitrate, and resolution instead of presumptive ranking badges.
+  - **Neutral Stream Presentation**: Presents all sniffed streams with their exact MIME type, bitrate, and resolution.
   - **On-Demand Quality Probing (`probe.js`, `manifest.js`)**: Pure parser for HLS master playlists (`#EXT-X-STREAM-INF`) and DASH MPDs (`<AdaptationSet>`, `<Representation>`); parses resolution, bandwidth, and codecs into interactive radio choices upon clicking `▸ Qualities`. Probing is strictly on-demand with replay of captured CDN authentication headers and 2MB/8s safety limits.
   - **Quality Directives via Clipboard**: Appends `# nre-select-video: res="1080*"` to cURL commands when a rendition is selected, instantly setting GUI quality selectors.
   - **Multi-Select & Batch List Export (`toBatchList`)**: Checkbox multi-selection, select all, and `📋 Copy as list` with `# Referer:` headers.
@@ -215,11 +257,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added keyboard bindings: `Alt+G` / `Enter` for GO, `Alt+S` / `Escape` for Stop.
   - Added `AutomationProperties.Name` across all interactive inputs.
   - Added `XamlAccessibilityTests` headless automated XAML validation suite.
+- **Automated Test Suite (771 .NET Tests + 362 Node.js Extension Tests)**:
+  - .NET: 771 tests, 770 passing with 1 live integration skip. Node: 362 passing `node --test` extension tests. Both figures are measured from this tree.
+
 ### Changed
 
+- **Temp Directory Default Location** — **(merged 2.5.0)**: When `TextBox_TmpDir` is left empty, segments now land deterministically in `<save folder>/.nre-tmp/<saveName>` instead of N_m3u8DL-RE's default arbitrary location.
 - Forced `--no-ansi-color` on GUI download execution paths to ensure clean log parsing.
 - Standardized all application text and messages to clean English.
 - Updated window height default to 660px with work-area clamping.
+
+### Notes & Limitations
+
+- **Batch runs are not resumable**: A single job record cannot describe a multi-item run; batch queue resume remains deferred.
+- **Abyss module scope**: The Abyss module is not covered by this series of audits, and is excluded from every test-count figure quoted in them.
 
 ---
 
@@ -494,13 +545,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Highlights                                                |
 | ------- | ---------- | --------------------------------------------------------- |
+| 2.5.0   | 2026-10-08 | Resume interrupted downloads, SSOT versioning via `Directory.Build.props`, honest 3-state update check, browser extension v1.4.5, 1132 tests (770 .NET + 362 Node) |
 | 2.4.0   | 2026-10-08 | Unified Python discovery for CF fallback, shared bypass arguments, real segment reuse, gap-tolerant bypass merge, process reaping, 716 tests |
 | 2.3.0   | 2026-09-29 | Concurrent CF segment downloads, immediate 403/404 fallback, Surrit Referer fix and throughput |
 | 2.2.0   | 2026-09-28 | Recovery hardening: stable task name for segment reuse, cache discovery, cleanup preservation, CF fallback config/encoding/exit codes |
 | 2.1.8   | 2026-09-15 | Silent-failure detection fixed (recovery pipeline restored), truncated-download detection, publish output fixed (-38 MB), 711 tests |
 | 2.1.7   | 2026-09-15 | 23-icon 24-grid vector set (emoji removed), 15 new design tokens, control-template rewrite, filled inputs, empty-state card, extension popup alignment, 702 tests |
 | 2.1.6   | 2026-09-15 | Dark/Light themes, severity-coloured log, per-tool auto-update, log noise fix, -11 MB (WinForms removed), 702 tests |
-| 2.1.5   | 2026-08-20 | Abyss / Hydrax native downloader, universal stream capture (cURL/HAR), Browser Extension v1.3.0, DPAPI P0 hardening, WCAG AA contrast pass |
+| 2.1.5   | 2026-08-20 | Abyss / Hydrax native downloader, universal stream capture (cURL/HAR), Browser Extension v1.3.0, DPAPI P0 hardening, WCAG AA contrast pass (upstream tag; resume/SSOT/3-state check merged here in 2.4.0) |
 | 2.1.4   | 2026-08-08 | Windows DPAPI secret protection, lifecycle hardening, 164 tests |
 | 2.1.3   | 2026-08-06 | 3-Zone Modern UX/UI Architecture, Dark Mode ComboBox fixes|
 | 2.1.2   | 2026-08-06 | Dedicated CF Bypass Expander UX/UI, TLS fingerprinting    |
