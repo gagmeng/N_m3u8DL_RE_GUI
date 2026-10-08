@@ -1,4 +1,5 @@
 #nullable enable
+using System.Linq;
 using N_m3u8DL_RE_GUI.Core;
 using Xunit;
 
@@ -96,5 +97,62 @@ public class CfCommandBuilderTests
         string? explicitReferer, string? inputUrl, string expected)
     {
         Assert.Equal(expected, CfCommandBuilder.DeriveReferer(explicitReferer, inputUrl));
+    }
+
+    [Fact]
+    public void BuildArgumentList_ShouldCarryTheSameFlagSetAsBuildCommand()
+    {
+        var sample = Sample();
+        var args = CfCommandBuilder.BuildArgumentList(sample);
+
+        // The automatic fallback feeds ProcessStartInfo.ArgumentList (no shell quoting);
+        // the interactive path feeds a .bat. Both must send the same flags, or a bypass
+        // triggered without user interaction quietly does less work than the visible one.
+        foreach (var expected in new[] { "--referer", "-o", "--work-dir", "--seg-dir",
+                                         "--impersonate", "--thread-count" })
+            Assert.Contains(expected, args);
+        Assert.Equal(sample.ScriptPath, args[0]);
+        Assert.Equal(sample.Url, args[1]);
+        Assert.DoesNotContain("--cookie", args);
+        Assert.DoesNotContain("--keep-segs", args);
+    }
+
+    [Fact]
+    public void BuildArgumentList_ShouldSkipEmptyValuesAndClampThreadsLikeTheBatchForm()
+    {
+        var withCookie = CfCommandBuilder.BuildArgumentList(Sample() with { Cookie = "cf_clearance=abc" });
+        Assert.Contains("--cookie", withCookie);
+        var ci = withCookie.ToList().IndexOf("--cookie");
+        Assert.True(ci >= 0);
+        Assert.Equal("cf_clearance=abc", withCookie[ci + 1]);
+
+        var clamped = CfCommandBuilder.BuildArgumentList(Sample() with { ThreadCount = 9999, KeepSegments = true });
+        var ti = clamped.ToList().IndexOf("--thread-count");
+        Assert.True(ti >= 0);
+        Assert.Equal("64", clamped[ti + 1]);
+        Assert.Contains("--keep-segs", clamped);
+    }
+}
+
+/// <summary>Candidate ordering is the contract the interactive and automatic paths share.</summary>
+public class PythonProbeTests
+{
+    [Fact]
+    public void EnumerateCandidates_ShouldEndWithThePathLaunchers()
+    {
+        var candidates = N_m3u8DL_RE_GUI.Core.PythonProbe.EnumerateCandidates();
+
+        Assert.Contains("py", candidates);
+        Assert.True(candidates.Count >= 3, "at least the three PATH launchers must always be offered");
+
+        var n = candidates.Count;
+        Assert.Equal("py", candidates[n - 3]);
+        Assert.Equal("python", candidates[n - 2]);
+        Assert.Equal("python3", candidates[n - 1]);
+
+        // Anything before the launchers is a probed install path, and must be a real
+        // python.exe rather than a directory or a bare alias.
+        for (var i = 0; i < n - 3; i++)
+            Assert.EndsWith("python.exe", candidates[i]);
     }
 }

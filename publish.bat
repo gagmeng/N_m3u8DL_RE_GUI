@@ -6,7 +6,8 @@ echo ========================================================
 
 set "SOLUTION_DIR=%~dp0"
 set "VERSION=%~1"
-if "%VERSION%"=="" set "VERSION=2.2.0"
+REM Keep this default in sync with <Version> in N_m3u8DL_RE_GUI.Core\N_m3u8DL_RE_GUI.Core.csproj
+if "%VERSION%"=="" set "VERSION=2.4.0"
 set "PUBLISH_DIR=%SOLUTION_DIR%Publish\N_m3u8DL_RE_GUI_v%VERSION%"
 set "PROJECT_FILE=%SOLUTION_DIR%N_m3u8DL_RE_GUI\N_m3u8DL_RE_GUI.csproj"
 

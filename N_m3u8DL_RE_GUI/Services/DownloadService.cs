@@ -56,6 +56,18 @@ public class DownloadService : IDownloadService
             return false;
         }
 
+        // The orchestrator below needs two effective values the caller may not have set
+        // (cleanup must survive a failed attempt; retries must target one save name). It
+        // writes them into `options` because ~30 call sites read from it, and restores
+        // them on the way out: callers hand us their own state object (the MVVM path
+        // binds DownloadOptions directly), and a single download must not leave
+        // 'delete temporary files' switched off or the next run inheriting this run's
+        // pinned file name.
+        var originalDelAfterDone = options.DelAfterDone;
+        var originalSaveName = options.SaveName;
+        try
+        {
+
         if (string.IsNullOrWhiteSpace(options.Input))
         {
             logCallback?.Invoke("Please enter a URL to download.");
@@ -167,6 +179,12 @@ public class DownloadService : IDownloadService
         }
 
         return false;
+        }
+        finally
+        {
+            options.DelAfterDone = originalDelAfterDone;
+            options.SaveName = originalSaveName;
+        }
     }
 
     internal static string CreateRetrySaveName(string input, DateTime startedLocal)
@@ -212,7 +230,11 @@ public class DownloadService : IDownloadService
             return false;
         }
 
-        var python = FindPythonExecutable();
+        // Shared probe: same candidate rules as the interactive CF path (explicit
+        // installs + conda/workbuddy + PATH launchers), plus the curl_cffi import
+        // check. The previous PATH-only lookup silently failed on installs that are
+        // not registered on PATH, which is the common case on Windows.
+        var python = await N_m3u8DL_RE_GUI.Core.PythonProbe.DetectWithCurlCffiAsync(cancellationToken).ConfigureAwait(false);
         if (python == null)
         {
             logCallback?.Invoke("No Python with curl_cffi found — cannot attempt the CF-bypass fallback. Install it via: pip install curl_cffi");
@@ -249,27 +271,11 @@ public class DownloadService : IDownloadService
         };
         startInfo.Environment["PYTHONUTF8"] = "1";
         startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
-        startInfo.ArgumentList.Add(scriptPath);
-        startInfo.ArgumentList.Add(cfOptions.Url);
-        startInfo.ArgumentList.Add("--referer");
-        startInfo.ArgumentList.Add(cfOptions.Referer);
-        startInfo.ArgumentList.Add("-o");
-        startInfo.ArgumentList.Add(cfOptions.OutputName);
-        startInfo.ArgumentList.Add("--work-dir");
-        startInfo.ArgumentList.Add(cfOptions.WorkDir);
-        startInfo.ArgumentList.Add("--seg-dir");
-        startInfo.ArgumentList.Add(cfOptions.SegDir);
-        startInfo.ArgumentList.Add("--impersonate");
-        startInfo.ArgumentList.Add(cfOptions.Impersonate);
-        startInfo.ArgumentList.Add("--thread-count");
-        startInfo.ArgumentList.Add(Math.Clamp(cfOptions.ThreadCount, 1, 64).ToString());
-        if (!string.IsNullOrEmpty(cfOptions.Cookie))
-        {
-            startInfo.ArgumentList.Add("--cookie");
-            startInfo.ArgumentList.Add(cfOptions.Cookie);
-        }
-        if (cfOptions.KeepSegments)
-            startInfo.ArgumentList.Add("--keep-segs");
+        // Single source of truth for the flag set: BuildArgumentList mirrors BuildCommand
+        // (the interactive .bat form), so the automatic fallback cannot drift from what
+        // CfCommandBuilderTests assert against.
+        foreach (var arg in CfCommandBuilder.BuildArgumentList(cfOptions))
+            startInfo.ArgumentList.Add(arg);
         var result = await StartTrackedProcessAsync(
             startInfo, logCallback, progressCallback, redirect: true, cancellationToken);
         return result.Success;
@@ -284,38 +290,6 @@ public class DownloadService : IDownloadService
         return System.IO.File.Exists(candidate) ? candidate : null;
     }
 
-    private static string? FindPythonExecutable()
-    {
-        // The GUI's interactive CF path probes interpreters in depth; the automatic
-        // fallback keeps it simple and only trusts a real python on PATH.
-        foreach (var name in new[] { "python", "python3", "py" })
-        {
-            try
-            {
-                using var probe = Process.Start(new ProcessStartInfo
-                {
-                    FileName = name,
-                    Arguments = "-c \"import curl_cffi\"",
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                });
-                if (probe == null)
-                    continue;
-                if (!probe.WaitForExit(15000))
-                {
-                    try { probe.Kill(); } catch { }
-                    continue;
-                }
-                if (probe.ExitCode == 0)
-                    return name;
-            }
-            catch { }
-        }
-
-        return null;
-    }
 
     /// <summary>
     /// Merges whatever segments the finished (failed) run left in the temp directory
@@ -377,12 +351,28 @@ public class DownloadService : IDownloadService
                 Arguments = $"-hide_banner -loglevel error -y -f concat -safe 0 -i \"{concatList}\" -c copy \"{uniquePath}\"",
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
             });
-            if (merge == null || !merge.WaitForExit(600000) || merge.ExitCode != 0)
+            // Deliberately NOT redirecting: nothing here reads the streams, and an
+            // unread pipe fills up (tens of KB is enough for ffmpeg on a corrupt
+            // stream) which blocks the merge forever. Whatever ffmpeg would have
+            // printed is already in the engine log.
+            if (merge == null)
             {
-                logCallback?.Invoke("ffmpeg merge failed — see the engine log for details.");
+                logCallback?.Invoke("ffmpeg merge failed — could not start the merge process.");
+                return null;
+            }
+
+            // A timeout used to only stop waiting: the merge kept running, holding the
+            // output file and the temp concat list. Reap it instead of leaking it.
+            if (!merge.WaitForExit(600000))
+            {
+                logCallback?.Invoke("ffmpeg merge timed out after 10 min — terminating it.");
+                try { merge.Kill(entireProcessTree: true); } catch { }
+                return null;
+            }
+            if (merge.ExitCode != 0)
+            {
+                logCallback?.Invoke($"ffmpeg merge failed (exit code {merge.ExitCode}) — see the engine log for details.");
                 return null;
             }
         }
@@ -528,6 +518,11 @@ public class DownloadService : IDownloadService
                     }
 
                     logCallback?.Invoke("Process execution was cancelled.");
+                    // The finally below disposes the cancellation source and the process;
+                    // leave the pumps no longer than it takes to notice. Without this they
+                    // can be mid-read on a stream that is about to disappear.
+                    try { await Task.WhenAll(pumpOut, pumpErr).WaitAsync(TimeSpan.FromSeconds(2)); }
+                    catch { /* outcome already decided by the exit code; pumps only drain text */ }
                     return new EngineRunResult(false, ConsoleOutputParser.EngineOutcome.None);
                 }
                 forwarder.FlushPending();
@@ -590,9 +585,18 @@ public class DownloadService : IDownloadService
                 try
                 {
                     if (!process.HasExited)
+                    {
                         process.Kill(entireProcessTree: true);
+                        if (!process.WaitForExit(5000))
+                            logCallback?.Invoke("Warning: the child process survived cancellation and could not be reaped.");
+                    }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // Swallowing this made an orphaned engine invisible: the run looked
+                    // cancelled while something was still writing segments next to it.
+                    logCallback?.Invoke($"Warning: could not reap the process tree: {ex.Message}");
+                }
                 try { process.Dispose(); } catch { }
             }
 

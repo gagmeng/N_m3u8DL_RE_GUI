@@ -56,6 +56,16 @@
 
 <!-- GETTING STARTED -->
 
+## What's New in 2.4.0 (2026-10-08)
+
+This release hardens the Cloudflare-bypass path so the automatic fallback behaves exactly like the interactive one.
+
+- **Python is actually found** - the automatic fallback now probes the same interpreters as the interactive path (explicit installs, conda/WorkBuddy, then `py`/`python` on PATH) and verifies `curl_cffi`; the probe is async and cancellable.
+- **One place builds the bypass arguments** - flags sent by the automatic run come from `CfCommandBuilder`, the same builder the tests assert against, so the two paths cannot drift apart.
+- **Retries only fetch what is missing** - segments already on disk are skipped, the segment cache is namespaced per task, and a single failed segment no longer throws away everything after it (the merge keeps what arrived and reports the gaps).
+- **Settings survive a run** - the retry orchestrator restores the temporary overrides it needs instead of leaving `DelAfterDone` switched off or a pinned file name behind.
+- **No orphan processes** - `ffmpeg` merges no longer block on an unread output pipe, timeouts terminate the merge process tree, and a failed reaping is reported in the log instead of swallowed.
+
 ## What's New in 2.3.0 (2026-09-29)
 
 This release makes Cloudflare-protected Surrit downloads start sooner and sustain much higher throughput.
@@ -72,14 +82,14 @@ We have intentionally kept the installation process as simple as possible. No in
 
 ### 1. Download
 
-Download the latest release (`N_m3u8DL_RE_GUI_v2.3.0.zip`) from our [GitHub Releases](https://github.com/gagmeng/N_m3u8DL_RE_GUI/releases) page.
+Download the latest release (`N_m3u8DL_RE_GUI_v2.4.0.zip`) from our [GitHub Releases](https://github.com/gagmeng/N_m3u8DL_RE_GUI/releases) page.
 
 ### 2. Extract
 
 Extract the `.zip` file anywhere on your computer. Inside the folder, you will find 4 core files plus the optional companion browser extension:
 
 ```text
-N_m3u8DL_RE_GUI_v2.3.0/
+N_m3u8DL_RE_GUI_v2.4.0/
 ├── N_m3u8DL_RE_GUI.exe    <-- The main application (Double click this!)
 ├── N_m3u8DL-RE.exe        <-- The core download engine
 ├── ffmpeg.exe             <-- The video/audio muxing engine

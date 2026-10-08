@@ -92,6 +92,10 @@ public class SegmentAuditServiceTests : IDisposable
         var newer = Path.Combine(nreTmp, "new_run");
         Directory.CreateDirectory(older);
         Directory.CreateDirectory(newer);
+        // ResolveTmpDir only considers run dirs that contain a manifest, so both
+        // candidates need one (the older one is excluded by its timestamp below).
+        File.WriteAllText(Path.Combine(older, "raw.m3u8"), "1");
+        File.WriteAllText(Path.Combine(newer, "raw.m3u8"), "1");
         Directory.SetLastWriteTimeUtc(older, DateTime.UtcNow.AddDays(-2));
         Directory.SetLastWriteTimeUtc(newer, DateTime.UtcNow);
 

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.4.0] - 2026-10-08
+
+### Fixed
+
+- **Unified Python Interpreter Discovery**: the automatic Cloudflare fallback now uses the same candidate probing as the interactive path (explicit CPython installs, conda/WorkBuddy, then PATH launchers) plus the `curl_cffi` import check, and is cancellable — a bypass no longer silently does nothing when Python is not on `PATH`.
+- **Single Source of Truth for Bypass Flags**: the fallback builds its process arguments from `CfCommandBuilder`, so the interactive `.bat` and the automatic run can no longer drift apart.
+- **Real Segment Reuse in the Bypass**: `m3u8_cf_bypass.py` skips segments already on disk, and its cache directory is namespaced per task (`sha1(url + output)`), which also stops two concurrent runs from deleting each other's files and moves `list.txt` out of the cleaned directory.
+- **Gap-Tolerant Bypass Merge**: a single missing segment no longer discards every segment downloaded after it; the merge keeps what arrived in playlist order and reports how many are missing.
+- **No Caller State Leak**: the retry orchestrator restores `DelAfterDone` / `SaveName` after the run instead of leaving its temporary overrides in the caller's options object.
+
+### Changed
+
+- **Process Reaping**: `ffmpeg` merges no longer redirect output nobody reads (an unread pipe could block the merge forever), a timeout now terminates the merge process tree, and the engine cancellation path waits briefly for its output pumps and logs a warning when a process cannot be reaped.
+- `publish.bat` default `VERSION` now matches the release version instead of lagging at 2.2.0.
+- Version advanced to **2.4.0** across Core, GUI assembly attributes and release documentation.
+
+---
+
 ## [2.3.0] - 2026-09-29
 
 ### Added
@@ -476,6 +494,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Highlights                                                |
 | ------- | ---------- | --------------------------------------------------------- |
+| 2.4.0   | 2026-10-08 | Unified Python discovery for CF fallback, shared bypass arguments, real segment reuse, gap-tolerant bypass merge, process reaping, 716 tests |
+| 2.3.0   | 2026-09-29 | Concurrent CF segment downloads, immediate 403/404 fallback, Surrit Referer fix and throughput |
+| 2.2.0   | 2026-09-28 | Recovery hardening: stable task name for segment reuse, cache discovery, cleanup preservation, CF fallback config/encoding/exit codes |
 | 2.1.8   | 2026-09-15 | Silent-failure detection fixed (recovery pipeline restored), truncated-download detection, publish output fixed (-38 MB), 711 tests |
 | 2.1.7   | 2026-09-15 | 23-icon 24-grid vector set (emoji removed), 15 new design tokens, control-template rewrite, filled inputs, empty-state card, extension popup alignment, 702 tests |
 | 2.1.6   | 2026-09-15 | Dark/Light themes, severity-coloured log, per-tool auto-update, log noise fix, -11 MB (WinForms removed), 702 tests |

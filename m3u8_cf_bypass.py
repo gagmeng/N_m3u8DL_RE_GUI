@@ -6,6 +6,8 @@ import subprocess
 import time
 import datetime
 import re
+import hashlib
+import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urljoin, urlparse
 
@@ -308,6 +310,15 @@ def main():
     seg_dir = os.path.abspath(seg_dir)
     os.makedirs(seg_dir, exist_ok=True)
 
+    # Namespace the cache by what we are actually fetching: the caller hands us one
+    # shared directory, and files are named 00000.ts, 00001.ts ... for every playlist.
+    # Without this, a kept cache from another video would be merged in as if it were
+    # ours, and two concurrent runs would delete each other's files (the rmtree below
+    # wipes the whole directory after a successful merge).
+    cache_key = hashlib.sha1((a.url + "\n" + a.output).encode("utf-8")).hexdigest()[:12]
+    seg_dir = os.path.join(seg_dir, cache_key)
+    os.makedirs(seg_dir, exist_ok=True)
+
     s = requests.Session(impersonate=a.impersonate)
     headers = {"Referer": referer, "Accept": "*/*"}
     if a.cookie:
@@ -387,6 +398,15 @@ def main():
         destination = os.path.join(seg_dir, f"{index:05d}.ts")
         partial = destination + ".part"
         last_error = "unknown error"
+
+        # Reuse a complete file from a previous run. This is what makes the GUI's
+        # 'failed attempt keeps its segments, the retry only fetches what is missing'
+        # promise real for the bypass path — before, every retry re-downloaded 100%.
+        try:
+            if os.path.getsize(destination) > 0:
+                return index, destination, None
+        except OSError:
+            pass  # missing or unreadable: download it
         for attempt in range(1, max_retries + 1):
             try:
                 # Surrit throttles reused long-lived connections after the initial
@@ -441,19 +461,26 @@ def main():
             print_progress(completed, len(segs))
 
     if failed_indices:
-        first_failed = min(failed_indices)
+        # Gaps are tolerated, exactly like the GUI's tolerant merge: keep every segment
+        # we actually have, in playlist order, instead of throwing away everything
+        # after the first hole. The concat demuxer jumps the missing numbers, so the
+        # result still plays — with a jump at each gap.
         Logger.error(
-            f"{len(failed_indices)} segment(s) failed. Merging the contiguous prefix before segment {first_failed + 1}...")
-        segment_paths = segment_paths[:first_failed]
+            f"{len(failed_indices)} segment(s) failed (first: {min(failed_indices) + 1}). "
+            "Merging what arrived; expect a jump at each gap.")
 
     ts = [path for path in segment_paths if path is not None]
 
+    if len(ts) < len(segs):
+        Logger.warn(f"{len(segs) - len(ts)} segment(s) missing from the output.")
     Logger.info(f"Downloaded {len(ts)}/{len(segs)} segment(s)")
     if not ts:
         Logger.error("No segments were downloaded successfully.")
         sys.exit(1)
 
-    lst = os.path.join(seg_dir, "list.txt")
+    # The list lives outside seg_dir: seg_dir is removed after a successful merge, and a
+    # fixed name there would collide between concurrent runs.
+    lst = os.path.join(tempfile.gettempdir(), f"cf_list_{cache_key}.txt")
     with open(lst, "w", encoding="utf-8") as f:
         for t in ts:
             f.write("file '" + os.path.abspath(t).replace("\\", "/") + "'\n")

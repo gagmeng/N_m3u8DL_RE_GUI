@@ -88,6 +88,37 @@ public static class CfCommandBuilder
         return uri.GetLeftPart(UriPartial.Authority) + "/";
     }
 
+    /// <summary>
+    /// Same argument set as <see cref="BuildCommand"/>, unquoted and in-process, for
+    /// callers that launch python through ProcessStartInfo.ArgumentList (the automatic
+    /// fallback). Both paths must stay in lock-step: a flag added to one and not the
+    /// other silently changes what the bypass sends, and the interactive .bat is what
+    /// the tests assert against.
+    /// </summary>
+    public static IReadOnlyList<string> BuildArgumentList(CfCommandOptions o)
+    {
+        var args = new List<string>
+        {
+            o.ScriptPath,
+            o.Url,
+            "--referer", o.Referer,
+            "-o", o.OutputName,
+            "--work-dir", o.WorkDir,
+            "--seg-dir", o.SegDir,
+            "--impersonate", o.Impersonate,
+            "--thread-count", Math.Clamp(o.ThreadCount, 1, 64).ToString(),
+        };
+        if (!string.IsNullOrEmpty(o.Cookie))
+        {
+            args.Add("--cookie");
+            args.Add(o.Cookie);
+        }
+        if (o.KeepSegments)
+            args.Add("--keep-segs");
+        return args;
+    }
+
     private static string Escape(string? value) =>
         string.IsNullOrEmpty(value) ? string.Empty : value.Replace("\"", "\\\"");
 }
+

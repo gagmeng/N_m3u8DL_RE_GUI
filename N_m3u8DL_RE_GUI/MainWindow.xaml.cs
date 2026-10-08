@@ -1418,120 +1418,14 @@ namespace N_m3u8DL_RE_GUI
         }
 
         /// <summary>
-        /// Find a Python interpreter that can import curl_cffi, by probing a list of
-        /// candidate interpreters and running `python -c "import curl_cffi"` for each.
-        /// Returns the first interpreter whose exit code is 0, or null if none found.
+        /// Find a Python interpreter that can import curl_cffi.
         ///
-        /// Candidate order:
-        ///   1. Explicit full paths to common CPython installs (avoids Windows Store stub)
-        ///   2. `py` launcher (reliable on Windows)
-        ///   3. Bare `python` / `python3` (PATH-resolved; last resort)
+        /// Candidate listing and probing now live in Core.PythonProbe so the automatic
+        /// CF fallback in DownloadService resolves interpreters exactly the same way;
+        /// this wrapper keeps the caller and its cancellation contract unchanged.
         /// </summary>
-        private static async System.Threading.Tasks.Task<string?> FindPythonWithCurlCffiAsync(System.Threading.CancellationToken cancellationToken = default)
-        {
-            var candidates = new List<string>();
-
-            // 1. Explicit full paths to standard CPython installs
-            try
-            {
-                string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-                string progFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-                foreach (var baseDir in new[] { progFiles, progFilesX86 })
-                {
-                    if (string.IsNullOrEmpty(baseDir)) continue;
-                    var pyRoot = Path.Combine(baseDir, "Python");
-                    if (Directory.Exists(pyRoot))
-                        foreach (var d in Directory.GetDirectories(pyRoot))
-                            candidates.Add(Path.Combine(d, "python.exe"));
-                }
-                if (!string.IsNullOrEmpty(localApp))
-                {
-                    var pp = Path.Combine(localApp, "Programs", "Python");
-                    if (Directory.Exists(pp))
-                        foreach (var d in Directory.GetDirectories(pp))
-                            candidates.Add(Path.Combine(d, "python.exe"));
-                }
-            }
-            catch { }
-
-            // 2. WorkBuddy & Anaconda/Miniconda managed environments
-            try
-            {
-                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                if (!string.IsNullOrEmpty(userProfile))
-                {
-                    string wbPy = Path.Combine(userProfile, ".workbuddy", "binaries", "python", "versions");
-                    if (Directory.Exists(wbPy))
-                        foreach (var v in Directory.GetDirectories(wbPy))
-                            candidates.Add(Path.Combine(v, "python.exe"));
-
-                    foreach (var condaName in new[] { "anaconda3", "miniconda3", "Anaconda3", "Miniconda3" })
-                    {
-                        var condaPath = Path.Combine(userProfile, condaName, "python.exe");
-                        if (File.Exists(condaPath))
-                            candidates.Add(condaPath);
-                    }
-                }
-            }
-            catch { }
-
-            // 3. Named launchers resolved via PATH.
-            candidates.Add("py");
-            candidates.Add("python");
-            candidates.Add("python3");
-
-            foreach (var c in candidates)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                try
-                {
-                    // Skip full paths that don't exist on disk.
-                    if (c.IndexOf(Path.DirectorySeparatorChar) >= 0 && !File.Exists(c))
-                        continue;
-
-                    var psi = new ProcessStartInfo(c, "-c \"import curl_cffi\"")
-                    {
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true,
-                    };
-
-                    using (var p = Process.Start(psi))
-                    {
-                        if (p == null) continue;
-                        using var timeoutCts = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                        timeoutCts.CancelAfter(TimeSpan.FromSeconds(10));
-
-                        var outTask = p.StandardOutput.ReadToEndAsync(timeoutCts.Token);
-                        var errTask = p.StandardError.ReadToEndAsync(timeoutCts.Token);
-
-                        try
-                        {
-                            await p.WaitForExitAsync(timeoutCts.Token);
-                            await System.Threading.Tasks.Task.WhenAll(outTask, errTask);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            try { p.Kill(entireProcessTree: true); } catch { }
-                            if (cancellationToken.IsCancellationRequested)
-                                throw;
-                            continue;
-                        }
-
-                        if (p.ExitCode == 0)
-                            return c;
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch { }
-            }
-            return null;
-        }
+        private static System.Threading.Tasks.Task<string?> FindPythonWithCurlCffiAsync(System.Threading.CancellationToken cancellationToken = default)
+            => N_m3u8DL_RE_GUI.Core.PythonProbe.DetectWithCurlCffiAsync(cancellationToken);
 
         /// <summary>
         /// Clean up stale batch files and pasted lists from %TEMP% directory created in previous runs.
